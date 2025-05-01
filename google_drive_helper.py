@@ -1,4 +1,4 @@
-# google_drive_helper.py (SCOPES 오류 완전 해결: 내부로 이동)
+# google_drive_helper.py (SCOPES 완전 제거, 문자열 직접 입력 방식)
 
 import streamlit as st
 from google.oauth2 import service_account
@@ -10,11 +10,10 @@ import json
 # === 인증 및 서비스 객체 생성 ===
 def get_drive_service():
     try:
-        SCOPES = ['https://www.googleapis.com/auth/drive']  # ✅ 함수 내부로 이동
         creds_json = st.secrets["gcp_service_account"]
         creds = service_account.Credentials.from_service_account_info(
             creds_json,
-            scopes=SCOPES
+            scopes=["https://www.googleapis.com/auth/drive"]  # ✅ 직접 문자열 입력
         )
         return build("drive", "v3", credentials=creds)
     except KeyError:
