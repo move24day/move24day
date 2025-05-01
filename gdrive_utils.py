@@ -1,4 +1,4 @@
-# gdrive_utils.py (SCOPES 제거 및 직접 문자열 입력 방식으로 수정)
+# gdrive_utils.py (SCOPES 제거 및 직접 문자열 입력 방식으로 수정 + search_files 함수 추가)
 
 import streamlit as st
 from google.oauth2 import service_account
@@ -49,7 +49,6 @@ def download_json_file(file_id):
         return None
 
 # JSON 파일 업로드 또는 덮어쓰기
-
 def upload_or_update_json_to_drive(file_name, json_content, folder_id=None):
     service = get_gdrive_service()
     file_id = find_file_id_by_exact_name(file_name, folder_id)
@@ -89,3 +88,29 @@ def find_file_id_by_exact_name(name, folder_id=None):
     except Exception as e:
         st.error(f"파일 검색 오류: {e}")
         return None
+
+# 이름 포함 검색 기능 추가
+def search_files(name_query, mime_type="application/json", folder_id=None):
+    service = get_gdrive_service()
+    escaped_query = name_query.replace("'", "\\'")
+    query = f"name contains '{escaped_query}' and mimeType='{mime_type}' and trashed = false"
+    if folder_id:
+        query += f" and '{folder_id}' in parents"
+    try:
+        page_token = None
+        results = []
+        while True:
+            response = service.files().list(
+                q=query,
+                spaces='drive',
+                fields='nextPageToken, files(id, name)',
+                pageToken=page_token
+            ).execute()
+            results.extend(response.get("files", []))
+            page_token = response.get("nextPageToken", None)
+            if not page_token:
+                break
+        return results
+    except Exception as e:
+        st.error(f"검색 중 오류 발생: {e}")
+        return []
