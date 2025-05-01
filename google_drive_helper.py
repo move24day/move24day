@@ -1,4 +1,4 @@
-# google_drive_helper.py (SCOPES 오류 수정 및 구조 정리)
+# google_drive_helper.py (SCOPES 오류 완전 해결: 내부로 이동)
 
 import streamlit as st
 from google.oauth2 import service_account
@@ -7,12 +7,10 @@ from googleapiclient.http import MediaIoBaseDownload, MediaIoBaseUpload
 import io
 import json
 
-# ✅ 반드시 import 아래에서 전역으로 정의
-SCOPES = ['https://www.googleapis.com/auth/drive']
-
 # === 인증 및 서비스 객체 생성 ===
 def get_drive_service():
     try:
+        SCOPES = ['https://www.googleapis.com/auth/drive']  # ✅ 함수 내부로 이동
         creds_json = st.secrets["gcp_service_account"]
         creds = service_account.Credentials.from_service_account_info(
             creds_json,
