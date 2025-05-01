@@ -1,4 +1,4 @@
-# gdrive_utils.py (SCOPES 제거 및 직접 문자열 입력 방식으로 수정 + search_files + save_file 함수 추가)
+# gdrive_utils.py (SCOPES 제거 및 직접 문자열 입력 방식으로 수정 + search_files + save_file + load_file 함수 추가)
 
 import streamlit as st
 from google.oauth2 import service_account
@@ -121,3 +121,14 @@ def save_file(file_name, json_string):
     if not isinstance(json_string, str):
         json_string = json.dumps(json_string, ensure_ascii=False)
     return upload_or_update_json_to_drive(file_name, json_string)
+
+# load_file 함수 (다운로드 후 dict 파싱)
+def load_file(file_id):
+    raw = download_json_file(file_id)
+    if raw:
+        try:
+            return json.loads(raw)
+        except Exception as e:
+            st.error(f"불러온 파일을 JSON으로 파싱하는 데 실패했습니다: {e}")
+            return None
+    return None
