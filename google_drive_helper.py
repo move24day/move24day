@@ -7,7 +7,7 @@ import io
 import os
 import streamlit as st
 import json # JSON 파싱 위해 추가
-
+SCOPES = ['https://www.googleapis.com/auth/drive']
 # Streamlit Secrets에서 서비스 계정 정보 읽기
 # secrets.toml 파일에 다음과 같이 설정해야 합니다:
 # [gcp_service_account]
