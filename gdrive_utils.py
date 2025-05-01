@@ -5,6 +5,7 @@ from google.oauth2 import service_account
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseDownload, MediaIoBaseUpload
 import io
+import json
 
 # Google Drive 인증 및 서비스 생성 함수
 def get_gdrive_service():
@@ -115,6 +116,8 @@ def search_files(name_query, mime_type="application/json", folder_id=None):
         st.error(f"검색 중 오류 발생: {e}")
         return []
 
-# save_file 함수 추가
+# save_file 함수 (자동 직렬화 처리 추가)
 def save_file(file_name, json_string):
+    if not isinstance(json_string, str):
+        json_string = json.dumps(json_string, ensure_ascii=False)
     return upload_or_update_json_to_drive(file_name, json_string)
