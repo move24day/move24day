@@ -1,14 +1,13 @@
-# google_drive_helper.py (수정 완료: SCOPES 일관 적용, Streamlit Secrets 사용, 업로드/검색 기능 포함)
+# google_drive_helper.py (SCOPES 오류 수정 및 구조 정리)
 
+import streamlit as st
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseDownload, MediaIoBaseUpload
 import io
-import os
-import streamlit as st
 import json
 
-# ✅ 통일된 스코프 정의
+# ✅ 반드시 import 아래에서 전역으로 정의
 SCOPES = ['https://www.googleapis.com/auth/drive']
 
 # === 인증 및 서비스 객체 생성 ===
