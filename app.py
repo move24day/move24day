@@ -619,7 +619,7 @@ with tab3:
         col_adj1, col_adj2, col_adj3 = st.columns(3)
         with col_adj1: st.number_input("📝 계약금", min_value=0, step=10000, key="deposit_amount", format="%d", help="고객에게 받을 계약금 입력") # 라벨 원복
         with col_adj2: st.number_input("💰 추가 조정 (+/-)", step=10000, key="adjustment_amount", help="견적 금액 외 추가 할증(+) 또는 할인(-) 금액 입력", format="%d") # 라벨 원복
-        with col_adj3: st.number_input("🪜 지방 사다리 추가요금", min_value=0, step=10000, key="regional_ladder_surcharge", format="%d", help="지방 작업 시 추가되는 사다리차 비용") # 라벨 원복
+        with col_adj3: st.number_input("🪜 사다리 추가요금", min_value=0, step=10000, key="regional_ladder_surcharge", format="%d", help="추가되는 사다리차 비용") # 라벨 원복
     if vehicle_changed_flag: st.rerun()
     st.divider() # 구분선 원복
     st.header("💵 최종 견적 결과") # 헤더 원복
