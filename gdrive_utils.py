@@ -1,4 +1,4 @@
-# gdrive_utils.py (SCOPES 제거 및 직접 문자열 입력 방식으로 수정 + search_files 함수 추가)
+# gdrive_utils.py (SCOPES 제거 및 직접 문자열 입력 방식으로 수정 + search_files + save_file 함수 추가)
 
 import streamlit as st
 from google.oauth2 import service_account
@@ -114,3 +114,7 @@ def search_files(name_query, mime_type="application/json", folder_id=None):
     except Exception as e:
         st.error(f"검색 중 오류 발생: {e}")
         return []
+
+# save_file 함수 추가
+def save_file(file_name, json_string):
+    return upload_or_update_json_to_drive(file_name, json_string)
