@@ -1,4 +1,4 @@
-# data.py (Updated with baskets and defaults, 중박스 수량/이름 수정 적용)
+# data.py (Updated with baskets and defaults, 중박스 수량/이름 최종 수정 적용)
 
 # --- 차량 제원 (부피(capacity)만 기존 값의 90%로 조정됨) ---
 # Note: LOADING_EFFICIENCY is applied in calculations.py, so capacity here should be the RAW capacity.
