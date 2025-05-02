@@ -1,4 +1,4 @@
-# excel_filler.py (병합된 셀 오류 수정, 실제 투입 차량 H7 추가, 셀 매핑 수정, date import 추가)
+# excel_filler.py (병합된 셀 오류 수정, 실제 투입 차량 H7 추가, 셀 매핑 수정, date import 추가, 장롱 수량 계산 수정 적용)
 
 import openpyxl
 import io
@@ -206,12 +206,24 @@ def fill_final_excel_template(state_data, calculated_cost_items, total_cost, per
         # ws['B28'] = '' # Clear other potential cells if they were part of merge
 
 
-        # --- 4. 품목 수량 입력 (모든 열 +1 가정 및 품목 매핑 수정 + 바구니 추가) ---
+        # --- 4. 품목 수량 입력 (모든 열 +1 가정 및 품목 매핑 수정 + 바구니 추가, 장롱 수량 계산 수정 적용) ---
         # Ensure all item names match data.py exactly
         # Verify cell references (D8, H8 etc.) match the template AFTER shifting columns
 
         # C -> D 열로 이동
-        ws['D8'] = get_item_qty(state_data, '장롱')
+
+        # === 장롱 수량 계산 및 포맷팅 시작 ===
+        jangrong_qty_original = get_item_qty(state_data, '장롱') # 원본 수량 가져오기
+        jangrong_qty_calculated = jangrong_qty_original / 3.0    # 1/3 계산 (소수점 유지를 위해 3.0으로 나눔)
+
+        # 결과가 정수인지 확인하여 포맷 결정
+        if jangrong_qty_calculated == int(jangrong_qty_calculated):
+            jangrong_qty_display = int(jangrong_qty_calculated) # 정수면 그대로 정수 사용
+        else:
+            jangrong_qty_display = round(jangrong_qty_calculated, 1) # 소수면 첫째 자리까지 반올림
+        ws['D8'] = jangrong_qty_display # 계산 및 포맷팅된 값을 셀에 입력
+        # === 장롱 수량 계산 및 포맷팅 끝 ===
+
         ws['D9'] = get_item_qty(state_data, '더블침대')
         ws['D10'] = get_item_qty(state_data, '서랍장')
         ws['D11'] = get_item_qty(state_data, '서랍장(3단)')
