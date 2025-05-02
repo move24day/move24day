@@ -1,4 +1,4 @@
-# app.py (UI/자동로드 원복, 이사 유형 선택만 동기화 적용 버전)
+# app.py (UI/자동로드 원복, 이사 유형 동기화, 요약 포맷 수정, 중박스 텍스트 수정 적용 버전)
 
 # 1. streamlit 라이브러리를 가장 먼저 임포트합니다.
 import streamlit as st
@@ -35,7 +35,7 @@ except Exception as e:
 
 
 # --- 타이틀 ---
-st.markdown("<h1 style='text-align: center; color: #1E90FF;'>🚚 이삿날 스마트 견적 시스템 🚚</h1>", unsafe_allow_html=True) # UI 개선 유지
+st.markdown("<h1 style='text-align: center; color: #1E90FF;'>🚚 이삿날 스마트 견적  🚚</h1>", unsafe_allow_html=True) # UI 개선 유지
 st.write("")
 
 # ========== 상태 저장/불러오기를 위한 키 목록 정의 ==========
@@ -310,20 +310,20 @@ with tab1:
     st.divider() # 구분선 원복
 
     # --- 고객 정보 입력 필드 (레이아웃 원복) ---
-    st.header("📝 고객 기본 정보") # 헤더 원복
+    st.header("📝 고객 정보") # 헤더 원복
 
     # 이사 유형 선택 (탭 1)
     try: current_index_tab1 = MOVE_TYPE_OPTIONS.index(st.session_state.base_move_type)
     except ValueError: current_index_tab1 = 0
     st.radio( # 라벨 원복
-        "🏢 **기본 이사 유형**",
+        "🏢 **이사 유형**",
         options=MOVE_TYPE_OPTIONS, index=current_index_tab1, horizontal=True,
         key="base_move_type_widget_tab1", on_change=sync_move_type, args=("base_move_type_widget_tab1",)
     )
     # 체크박스 위치 원복
     col_opts1, col_opts2 = st.columns(2)
-    with col_opts1: st.checkbox("📦 보관이사 여부", key="is_storage_move") # 라벨 원복
-    with col_opts2: st.checkbox("🛣️ 장거리 이사 적용", key="apply_long_distance") # 라벨 원복
+    with col_opts1: st.checkbox("📦 보관 여부", key="is_storage_move") # 라벨 원복
+    with col_opts2: st.checkbox("🛣️ 장거리 적용", key="apply_long_distance") # 라벨 원복
     st.write("") # 공백 제거 또는 유지 (선택사항)
 
     col1, col2 = st.columns(2) # 컬럼 레이아웃 원복
@@ -407,15 +407,15 @@ else:
 # =============================================================================
 
 
-# --- 탭 2: 물품 선택 (UI 원복 없음 - 개선된 상태 유지) ---
+# --- 탭 2: 물품 선택 (UI 원복 없음 - 개선된 상태 유지, 중박스 텍스트 수정 적용) ---
 # (이전 UI 개선 버전의 Tab 2 코드 유지)
 with tab2:
-    st.header("📋 이사 품목 선택 및 수량 입력")
+    st.header("📋 이사 품목  및 수량 ")
     st.caption(f"현재 선택된 기본 이사 유형: **{st.session_state.base_move_type}**")
     st.session_state.total_volume, st.session_state.total_weight = calculations.calculate_total_volume_weight(st.session_state.to_dict(), st.session_state.base_move_type)
     st.session_state.recommended_vehicle_auto, remaining_space = calculations.recommend_vehicle(st.session_state.total_volume, st.session_state.total_weight)
     with st.container(border=True):
-        st.subheader("품목별 수량 입력")
+        st.subheader("품목별 수량")
         item_category_to_display = data.item_definitions.get(st.session_state.base_move_type, {})
         basket_section_name_check = "포장 자재 📦"
         for section, item_list in item_category_to_display.items():
@@ -429,8 +429,10 @@ with tab2:
                     selected_truck_tab2 = st.session_state.get("final_selected_vehicle")
                     if selected_truck_tab2 and selected_truck_tab2 in data.default_basket_quantities:
                         defaults = data.default_basket_quantities[selected_truck_tab2]
-                        basket_qty = defaults.get('바구니', 0); med_box_qty = defaults.get('중박스', defaults.get('중자바구니', 0)); book_qty = defaults.get('책바구니', 0)
+                        # === 중박스 텍스트 수정 적용 ===
+                        basket_qty = defaults.get('바구니', 0); med_box_qty = defaults.get('중박스', 0); book_qty = defaults.get('책바구니', 0)
                         st.info(f"💡 **{selected_truck_tab2}** 추천 기본값: 바구니 {basket_qty}개, 중박스 {med_box_qty}개, 책 {book_qty}개 (현재 값이며, 직접 수정 가능합니다)")
+                        # === ---------------------- ===
                     else: st.info("💡 비용 탭에서 차량 선택 시 추천 기본 바구니 개수가 여기에 표시됩니다.")
                 num_columns = 2; cols = st.columns(num_columns); num_items = len(valid_items_in_section)
                 items_per_col = math.ceil(num_items / len(cols)) if num_items > 0 and len(cols) > 0 else 1
@@ -463,7 +465,7 @@ with tab2:
                             if qty > 0 and item_move in data.items: unit_move = "칸" if item_move == "장롱" else "개"; move_selection_display[item_move] = (qty, unit_move)
                         processed_items_summary_move.add(item_move)
         if move_selection_display:
-            st.markdown("**선택 품목 목록:**")
+            st.markdown("**선택 목록:**")
             cols_disp_m = st.columns(2)
             item_list_disp_m = list(move_selection_display.items())
             items_per_col_disp_m = math.ceil(len(item_list_disp_m)/len(cols_disp_m)) if len(item_list_disp_m)>0 and len(cols_disp_m)>0 else 1
@@ -492,7 +494,7 @@ with tab2:
         else: st.info("ℹ️ 선택된 이사 품목이 없습니다. 위에서 품목을 선택해주세요.");
 
 
-# --- 탭 3: 견적 및 비용 (UI 원복 없음, 이사 유형 선택만 추가) ---
+# --- 탭 3: 견적 및 비용 (UI 원복 없음, 이사 유형 선택, 요약 포맷 수정 적용) ---
 with tab3:
     st.header("💰 계산 및 옵션 ") # 헤더 원복
 
@@ -652,48 +654,78 @@ with tab3:
              st.subheader("📝 고객요구사항")
              st.info(special_notes_display)
 
-        # 이사 정보 요약 (st.text() 사용 유지)
+        # === 이사 정보 요약 (포맷 수정 적용됨) ===
         st.subheader("📋 이사 정보 요약")
         summary_generated = False # ... (이하 요약 로직 및 st.text() 출력은 동일하게 유지) ...
         try:
-            excel_data = pdf_generator.generate_excel(st.session_state.to_dict(), cost_items, total_cost, personnel_info)
-            if excel_data:
-                excel_buffer = io.BytesIO(excel_data); xls = pd.ExcelFile(excel_buffer)
-                df_info = xls.parse("견적 정보", header=None); df_cost = xls.parse("비용 내역 및 요약", header=None)
+            # 엑셀 데이터 생성은 요약 표시를 위해 필요할 수 있음 (개선된 방식에서는 pdf_generator 대신 excel_summary_generator 사용 가능)
+            # 여기서는 기존 pdf_generator.generate_excel 사용 가정
+            excel_data_summary = pdf_generator.generate_excel(st.session_state.to_dict(), cost_items, total_cost, personnel_info)
+            if excel_data_summary:
+                excel_buffer = io.BytesIO(excel_data_summary); xls = pd.ExcelFile(excel_buffer)
+                # 엑셀 파싱 (첫번째 시트와 세번째 시트만 필요할 수 있음)
+                df_info = pd.DataFrame()
+                df_cost = pd.DataFrame()
+                if "견적 정보" in xls.sheet_names:
+                    df_info = xls.parse("견적 정보", header=None)
+                if "비용 내역 및 요약" in xls.sheet_names:
+                     df_cost = xls.parse("비용 내역 및 요약", header=None)
+
                 info_dict = {}
-                if not df_info.empty and len(df_info.columns) > 1: info_dict = dict(zip(df_info[0].astype(str), df_info[1].astype(str)))
+                if not df_info.empty and len(df_info.columns) > 1:
+                    # 헤더가 없으므로 직접 키-값 생성
+                    for index, row in df_info.iterrows():
+                        key = str(row[0]) if pd.notna(row[0]) else f"row_{index}_col_0"
+                        value = str(row[1]) if pd.notna(row[1]) else ""
+                        info_dict[key] = value
+
+                # --- format_money_kor 함수 (원/만원 제거됨) ---
                 def format_money_kor(amount):
                     try: amount_str = str(amount).replace(",", "").split()[0]; amount_float = float(amount_str); amount_int = int(amount_float)
                     except: return "금액오류"
-                    if amount_int >= 10000: return f"{amount_int // 10000}만원"
-                    elif amount_int != 0: return f"{amount_int}원"
-                    else: return "0원"
+                    if amount_int >= 10000: return f"{amount_int // 10000}" # "만원" 제거
+                    elif amount_int != 0: return f"{amount_int}"          # "원" 제거
+                    else: return "0"                                     # "원" 제거
+
+                # --- get_cost_value_abbr 함수 (format_money_kor 사용) ---
+                def get_cost_value_abbr(keyword, abbr, cost_df):
+                    if cost_df.empty or len(cost_df.columns) < 2: return f"{abbr} 정보 없음"
+                    # header=None으로 읽었으므로 인덱스 직접 사용
+                    for i in range(len(cost_df)):
+                        cell_value = cost_df.iloc[i, 0] # 0번 열 = 항목
+                        if pd.notna(cell_value) and str(cell_value).strip().startswith(keyword):
+                            formatted_amount = format_money_kor(cost_df.iloc[i, 1]) # 1번 열 = 금액
+                            return f"{abbr} {formatted_amount}" # 약어 + 숫자
+                    return f"{abbr} 정보 없음"
+
                 def format_address(address_string):
                     if not isinstance(address_string, str) or not address_string.strip() or address_string.lower() == 'nan': return ""
                     return address_string.strip()
-                def get_cost_value_abbr(keyword, abbr, cost_df):
-                    if cost_df.empty or len(cost_df.columns) < 2: return f"{abbr} 정보 없음"
-                    for i in range(len(cost_df)):
-                        cell_value = cost_df.iloc[i, 0]
-                        if pd.notna(cell_value) and str(cell_value).strip().startswith(keyword): formatted_amount = format_money_kor(cost_df.iloc[i, 1]); return f"{abbr} {formatted_amount}"
-                    return f"{abbr} 정보 없음"
+
+                # --- format_work_method 함수 (승강기 -> 엘 수정됨) ---
                 def format_work_method(method_str):
                     method_str = str(method_str).strip()
                     if "사다리차" in method_str: return "사"
-                    elif "승강기" in method_str: return "승"
+                    elif "승강기" in method_str: return "엘" # "승"을 "엘"로 변경
                     elif "계단" in method_str: return "계"
-                    elif "스카이" in method_str: return "스카이"
+                    elif "스카이" in method_str: return "스카이" # 스카이는 그대로 둘 경우
                     else: return "?"
+
+                # 키 이름은 generate_excel 함수에서 정의한 것과 일치해야 함
                 from_address_full = format_address(info_dict.get("출발지", ""))
                 to_address_full = format_address(info_dict.get("도착지", ""))
                 phone = info_dict.get("고객 연락처", "")
                 work_from_raw = info_dict.get("출발 작업", ""); work_to_raw = info_dict.get("도착 작업", "")
                 vehicle_type = final_selected_vehicle_calc if final_selected_vehicle_calc else info_dict.get("선택 차량", "")
                 special_note = format_address(info_dict.get("고객요구사항", ""))
+
                 p_info_calc = personnel_info; final_men_calc = p_info_calc.get('final_men', 0); final_women_calc = p_info_calc.get('final_women', 0)
                 personnel_formatted = f"{final_men_calc}+{final_women_calc}" if final_women_calc > 0 else f"{final_men_calc}"
+
                 basket_section_name = "포장 자재 📦"; current_move_type_summary = st.session_state.base_move_type
-                key_basket = f"qty_{current_move_type_summary}_{basket_section_name}_바구니"; key_med_box = f"qty_{current_move_type_summary}_{basket_section_name}_중박스"; key_book_basket = f"qty_{current_move_type_summary}_{basket_section_name}_책바구니"
+                key_basket = f"qty_{current_move_type_summary}_{basket_section_name}_바구니"
+                key_med_box = f"qty_{current_move_type_summary}_{basket_section_name}_중박스" # '중박스'로 확인
+                key_book_basket = f"qty_{current_move_type_summary}_{basket_section_name}_책바구니"
                 try: qty_basket = int(st.session_state.get(key_basket, 0))
                 except: qty_basket = 0
                 try: qty_medium_box = int(st.session_state.get(key_med_box, 0))
@@ -701,16 +733,23 @@ with tab3:
                 try: qty_book_basket = int(st.session_state.get(key_book_basket, 0))
                 except: qty_book_basket = 0
                 basket_formatted = f"바{qty_basket} 중{qty_medium_box} 책{qty_book_basket}" if (qty_basket + qty_medium_box + qty_book_basket > 0) else ""
-                contract_fee_str = get_cost_value_abbr("계약금 (-)", "계", df_cost); remaining_fee_str = get_cost_value_abbr("잔금 (VAT 별도)", "잔", df_cost)
+
+                # 계약금/잔금 가져오기 (키워드 확인)
+                contract_fee_str = get_cost_value_abbr("계약금", "계", df_cost) # "계약금 (-)" 대신 "계약금"
+                remaining_fee_str = get_cost_value_abbr("잔금", "잔", df_cost)   # "잔금 (VAT 별도)" 대신 "잔금"
+
                 work_from_abbr = format_work_method(work_from_raw); work_to_abbr = format_work_method(work_to_raw); work_method_formatted = f"출{work_from_abbr}도{work_to_abbr}"
+
+                # --- 최종 출력 (형식 수정 적용됨) ---
                 st.text(f"{from_address_full} - {to_address_full} {vehicle_type}"); st.text("")
                 if phone and phone != '-': st.text(f"{phone}"); st.text("")
-                st.text(f"{vehicle_type} | {personnel_formatted}"); st.text("")
+                st.text(f"{vehicle_type} {personnel_formatted}"); st.text("") # "|" 제거됨
                 if basket_formatted: st.text(basket_formatted); st.text("")
                 st.text(work_method_formatted); st.text("")
-                st.text(f"{contract_fee_str} / {remaining_fee_str}"); st.text("")
+                st.text(f"{contract_fee_str} / {remaining_fee_str}"); st.text("") # 원/만원 제거됨
                 if special_note and special_note.strip() and special_note.strip().lower() != 'nan' and special_note != '-': st.text(f"{special_note.strip()}")
                 summary_generated = True
+                # --- -------------------------- ---
             else: st.warning("⚠️ 요약 정보 생성 실패 (엑셀 데이터 오류)")
         except Exception as e: st.error(f"❌ 요약 정보 생성 중 오류 발생: {e}"); traceback.print_exc()
         if not summary_generated and final_selected_vehicle_calc: st.info("ℹ️ 요약 정보를 표시할 수 없습니다.")
