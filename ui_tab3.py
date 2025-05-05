@@ -35,19 +35,17 @@ def render_tab3():
     st.subheader("🏢 이사 유형 확인/변경")
     current_move_type = st.session_state.get('base_move_type')
     current_index_tab3 = 0 # Default index
-    # Ensure MOVE_TYPE_OPTIONS is loaded and valid before using it
     if 'MOVE_TYPE_OPTIONS' in globals() and MOVE_TYPE_OPTIONS and isinstance(MOVE_TYPE_OPTIONS, (list, tuple)):
         try:
             current_index_tab3 = MOVE_TYPE_OPTIONS.index(current_move_type)
         except ValueError:
-            # Handle case where current_move_type is not in options
             current_index_tab3 = 0
-            if MOVE_TYPE_OPTIONS: # Ensure options exist before assigning default
+            if MOVE_TYPE_OPTIONS:
                  st.session_state.base_move_type = MOVE_TYPE_OPTIONS[0]
                  print("Warning: Resetting base_move_type in Tab 3 due to invalid state.")
-            # else case handled below
+            else:
+                 st.error("이사 유형 옵션을 data.py에서 찾을 수 없습니다.")
 
-        # Render radio only if options are available
         st.radio(
             "기본 이사 유형:",
             options=MOVE_TYPE_OPTIONS, index=current_index_tab3, horizontal=True,
@@ -57,8 +55,6 @@ def render_tab3():
         )
     else:
          st.error("이사 유형 옵션을 정의할 수 없습니다. data.py 또는 state_manager.py 파일을 확인하세요.")
-         # Optionally return or stop if move types are critical for the rest of the tab
-         # return
 
     st.divider()
 
@@ -76,7 +72,6 @@ def render_tab3():
                 on_change=update_basket_quantities
             )
         with col_v2_widget:
-            # This block remains the same as the last correct version
             current_move_type_widget = st.session_state.base_move_type
             vehicle_prices_options_widget = data.vehicle_prices.get(current_move_type_widget, {})
             available_trucks_widget = sorted(vehicle_prices_options_widget.keys(), key=lambda x: data.vehicle_specs.get(x, {}).get("capacity", 0))
@@ -199,6 +194,7 @@ def render_tab3():
                     note = format_address(info_dict.get("고객요구사항", st.session_state.get('special_notes','')))
                     p_info = personnel_info if isinstance(personnel_info, dict) else {}; men = p_info.get('final_men', 0); women = p_info.get('final_women', 0); ppl = f"{men}+{women}" if women > 0 else f"{men}"
                     b_name = "포장 자재 📦"; move_t = st.session_state.base_move_type
+                    # --- vvv Block around Line 103 vvv ---
                     q_b = int(st.session_state.get(f"qty_{move_t}_{b_name}_바구니", 0))
                     q_m = int(st.session_state.get(f"qty_{move_t}_{b_name}_중박스", 0))
                     q_c = int(st.session_state.get(f"qty_{move_t}_{b_name}_옷바구니", 0))
@@ -209,26 +205,27 @@ def render_tab3():
                     if q_c > 0: bask_parts.append(f"옷{q_c}")
                     if q_k > 0: bask_parts.append(f"책{q_k}")
                     bask = " ".join(bask_parts)
+                    # --- ^^^ Block around Line 103 ^^^ ---
                     cont_fee = get_cost_abbr("계약금 (-)", "계", df_cost); rem_fee = get_cost_abbr("잔금 (VAT 별도)", "잔", df_cost)
                     w_from = format_method(info_dict.get("출발 작업", st.session_state.get('from_method',''))); w_to = format_method(info_dict.get("도착 작업", st.session_state.get('to_method',''))); work = f"출{w_from}도{w_to}"
 
-                    # --- vvv Block around Line 122 vvv --- ENSURE SYNTAX AND INDENTATION ARE CORRECT
+                    # --- vvv Block around Line 122 vvv --- Ensure syntax and indentation are correct
                     st.text(f"{vehicle_type}") # Line 1
                     st.text("") # Line 2
 
-                    if phone and phone != '-': # Line 3 (Check colon)
-                        st.text(phone) # Line 4 (Check indentation)
-                        st.text("") # Line 5 (Check indentation - Likely Line 122)
+                    if phone and phone != '-': # Line 3 (Check Colon!)
+                        st.text(phone)         # Line 4 (Check Indentation!)
+                        st.text("")            # Line 5 (Check Indentation! - Likely Line 122)
 
-                    if from_addr: # Line 6 (Check colon and indentation relative to block above)
-                        st.text(from_addr) # Line 7 (Check indentation)
-                    if to_addr: # Line 8 (Check colon and indentation)
-                        st.text(to_addr) # Line 9 (Check indentation)
-                    if from_addr or to_addr: # Line 10 (Check colon and indentation)
-                        st.text("") # Line 11 (Check indentation)
+                    if from_addr:              # Line 6 (Check Colon and Indentation)
+                        st.text(from_addr)     # Line 7 (Check Indentation)
+                    if to_addr:                # Line 8 (Check Colon and Indentation)
+                        st.text(to_addr)       # Line 9 (Check Indentation)
+                    if from_addr or to_addr:   # Line 10 (Check Colon and Indentation)
+                        st.text("")            # Line 11 (Check Indentation)
 
-                    st.text(f"{ppl}") # Line 12 (Check indentation)
-                    st.text("") # Line 13 (Check indentation)
+                    st.text(f"{ppl}")          # Line 12 (Check Indentation)
+                    st.text("")                # Line 13 (Check Indentation)
                     # --- ^^^ Block around Line 122 ^^^ ---
 
                     if bask: st.text(bask); st.text("")
