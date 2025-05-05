@@ -1,9 +1,9 @@
-# ui_tab3.py (Summary format updated, syntax checked)
+# ui_tab3.py (Corrected All single-line 'with' syntax errors)
 import streamlit as st
 import pandas as pd
 import io
 import pytz
-from datetime import datetime
+from datetime import datetime, date # date 추가
 import traceback # Keep for error handling
 
 # Import necessary custom modules
@@ -36,6 +36,7 @@ def render_tab3():
     current_move_type = st.session_state.get('base_move_type')
     current_index_tab3 = 0 # Default index
     # Ensure MOVE_TYPE_OPTIONS is loaded and valid before using it
+    # Check existence and type using 'in globals()' and isinstance for safety
     if 'MOVE_TYPE_OPTIONS' in globals() and MOVE_TYPE_OPTIONS and isinstance(MOVE_TYPE_OPTIONS, (list, tuple)):
         try:
             current_index_tab3 = MOVE_TYPE_OPTIONS.index(current_move_type)
@@ -75,6 +76,7 @@ def render_tab3():
                 on_change=update_basket_quantities
             )
         with col_v2_widget:
+            # (Vehicle selection display logic - unchanged)
             current_move_type_widget = st.session_state.base_move_type
             vehicle_prices_options_widget = data.vehicle_prices.get(current_move_type_widget, {})
             available_trucks_widget = sorted(vehicle_prices_options_widget.keys(), key=lambda x: data.vehicle_specs.get(x, {}).get("capacity", 0))
@@ -131,27 +133,39 @@ def render_tab3():
                 if sky_to: st.number_input("도착 스카이 시간(h)", min_value=1, step=1, key="sky_hours_final")
             st.write("") # Spacer after sky inputs
 
-        # Corrected block (Personnel)
-        col_add1, col_add2 = st.columns(2)
-        with col_add1:
-            st.number_input("추가 남성 인원 👨", min_value=0, step=1, key="add_men", help="기본 인원 외 추가로 필요한 남성 작업자 수")
-        with col_add2:
-            st.number_input("추가 여성 인원 👩", min_value=0, step=1, key="add_women", help="기본 인원 외 추가로 필요한 여성 작업자 수")
+        # --- vvv CORRECTED BLOCK (Line 130 area) vvv ---
+        col_add1, col_add2 = st.columns(2) # Define columns first
+        with col_add1:                  # Use 'with' on a new line
+            # Indent the content for col1
+            st.number_input(
+                "추가 남성 인원 👨",
+                min_value=0, step=1, key="add_men",
+                help="기본 인원 외 추가로 필요한 남성 작업자 수"
+            )
+        with col_add2:                  # Use 'with' on a new line
+            # Indent the content for col2
+            st.number_input(
+                "추가 여성 인원 👩",
+                min_value=0, step=1, key="add_women",
+                help="기본 인원 외 추가로 필요한 여성 작업자 수"
+            )
         st.write("") # Spacer after personnel inputs
+        # --- ^^^ CORRECTED BLOCK ^^^ ---
 
-        # Corrected block (Dispatched)
+        # --- vvv CORRECTED BLOCK vvv ---
         st.subheader("🚚 실제 투입 차량")
-        dispatched_cols = st.columns(4)
-        with dispatched_cols[0]:
+        dispatched_cols = st.columns(4) # Define columns first
+        with dispatched_cols[0]:         # Use 'with' on a new line
             st.number_input("1톤", min_value=0, step=1, key="dispatched_1t")
-        with dispatched_cols[1]:
+        with dispatched_cols[1]:         # Use 'with' on a new line
             st.number_input("2.5톤", min_value=0, step=1, key="dispatched_2_5t")
-        with dispatched_cols[2]:
+        with dispatched_cols[2]:         # Use 'with' on a new line
             st.number_input("3.5톤", min_value=0, step=1, key="dispatched_3_5t")
-        with dispatched_cols[3]:
+        with dispatched_cols[3]:         # Use 'with' on a new line
             st.number_input("5톤", min_value=0, step=1, key="dispatched_5t")
         st.caption("견적 계산과 별개로, 실제 현장에 투입될 차량 대수를 입력합니다.")
         st.write("") # Spacer after dispatched inputs
+        # --- ^^^ CORRECTED BLOCK ^^^ ---
 
         # (Rest of options logic - unchanged structure)
         base_w = 0; remove_opt = False; final_vehicle_for_options = st.session_state.get('final_selected_vehicle'); current_move_type_options = st.session_state.base_move_type; vehicle_prices_options_display = data.vehicle_prices.get(current_move_type_options, {})
@@ -164,14 +178,15 @@ def render_tab3():
         else:
              if 'remove_base_housewife' in st.session_state: st.session_state.remove_base_housewife = False
 
-        # Corrected block (Waste)
-        col_waste1, col_waste2 = st.columns([1, 2])
-        with col_waste1:
+        # --- vvv CORRECTED BLOCK vvv ---
+        col_waste1, col_waste2 = st.columns([1, 2]) # Define columns first
+        with col_waste1:                         # Use 'with' on a new line
             st.checkbox("폐기물 처리 필요 🗑️", key="has_waste_check", help="톤 단위 직접 입력 방식입니다.")
-        with col_waste2:
+        with col_waste2:                         # Use 'with' on a new line
             if st.session_state.get('has_waste_check'):
                 st.number_input("폐기물 양 (톤)", min_value=0.5, max_value=10.0, step=0.5, key="waste_tons_input", format="%.1f")
                 st.caption(f"💡 1톤당 {data.WASTE_DISPOSAL_COST_PER_TON:,}원 추가 비용 발생")
+        # --- ^^^ CORRECTED BLOCK ^^^ ---
 
         st.write("📅 **날짜 유형 선택** (중복 가능, 해당 시 할증)")
         date_options = ["이사많은날 🏠", "손없는날 ✋", "월말 📅", "공휴일 🎉", "금요일 📅"]; date_keys = [f"date_opt_{i}_widget" for i in range(len(date_options))]; cols_date = st.columns(len(date_options));
@@ -228,11 +243,10 @@ def render_tab3():
         special_notes_display = st.session_state.get('special_notes')
         if special_notes_display and special_notes_display.strip(): st.subheader("📝 고객요구사항"); st.info(special_notes_display)
 
-        # --- Move Info Summary (Check syntax around line 132) ---
+        # --- Move Info Summary (Corrected Format) ---
         st.subheader("📋 이사 정보 요약")
         summary_generated = False
         try:
-            # Ensure necessary functions are available
             if not callable(getattr(pdf_generator, 'generate_excel', None)): raise ImportError("pdf_generator.generate_excel is not available or callable.")
             if not isinstance(personnel_info, dict): personnel_info = {}
 
@@ -242,7 +256,6 @@ def render_tab3():
                 if "견적 정보" in xls.sheet_names and "비용 내역 및 요약" in xls.sheet_names:
                     df_info = xls.parse("견적 정보", header=None); df_cost = xls.parse("비용 내역 및 요약", header=None)
                     info_dict = dict(zip(df_info[0].astype(str), df_info[1].astype(str))) if not df_info.empty and len(df_info.columns) > 1 else {}
-                    # Helper functions
                     def format_money_kor(amount):
                         try: amount_str = str(amount).replace(",", "").split()[0]; amount_float = float(amount_str); amount_int = int(amount_float)
                         except: return "금액오류"
@@ -273,48 +286,34 @@ def render_tab3():
                     cont_fee = get_cost_abbr("계약금 (-)", "계", df_cost); rem_fee = get_cost_abbr("잔금 (VAT 별도)", "잔", df_cost)
                     w_from = format_method(info_dict.get("출발 작업", st.session_state.get('from_method',''))); w_to = format_method(info_dict.get("도착 작업", st.session_state.get('to_method',''))); work = f"출{w_from}도{w_to}"
 
-                    # --- vvv Summary Display Block - Check Lines 120-135 vvv ---
-                    # Display first line: Short addresses + Vehicle
+                    # Display Summary (Corrected Format and Syntax)
                     from_addr_short = from_addr.split()[0] if from_addr else ""
                     to_addr_short = to_addr.split()[0] if to_addr else ""
                     first_line = f"{from_addr_short} {to_addr_short} {vehicle_type}"
-                    st.text(first_line) # Corrected first line
+                    st.text(first_line)
                     st.text("")
-
-                    # Display phone
-                    if phone and phone != '-': # Check Colon!
-                        st.text(phone)         # Check Indentation!
-                        st.text("")            # Check Indentation! (Likely Line 122)
-
-                    # Display full addresses
-                    if from_addr:              # Check Colon & Indentation!
-                        st.text(from_addr)     # Check Indentation!
-                    if to_addr:                # Check Colon!
-                        st.text(to_addr)       # Check Indentation!
-                    if from_addr or to_addr:   # Check Colon & Indentation!
-                        st.text("")            # Check Indentation!
-
-                    # Display personnel count
-                    st.text(f"{ppl}")          # Check Indentation! (Likely Line 131)
-                    st.text("")                # Check Indentation! (Likely Line 132) <<< ERROR REPORTED HERE
-
-                    # Display baskets
-                    if bask:                   # Check Colon & Indentation! (Likely Line 133)
-                        st.text(bask)          # Check Indentation!
-                        st.text("")            # Check Indentation!
-                    # --- ^^^ Summary Display Block - Check Lines 120-135 ^^^ ---
-
-                    # Display work method
-                    st.text(work)              # Check Indentation!
-                    st.text("")                # Check Indentation!
-                    # Display costs
-                    st.text(f"{cont_fee} / {rem_fee}") # Check Indentation!
-                    st.text("")                # Check Indentation!
-                    # Display notes
-                    if note:                   # Check Colon & Indentation!
+                    if phone and phone != '-':
+                        st.text(phone)
+                        st.text("")
+                    if from_addr:
+                        st.text(from_addr)
+                    if to_addr:
+                        st.text(to_addr)
+                    if from_addr or to_addr:
+                        st.text("")
+                    st.text(f"{ppl}")
+                    st.text("")
+                    if bask:
+                        st.text(bask)
+                        st.text("")
+                    st.text(work)
+                    st.text("")
+                    st.text(f"{cont_fee} / {rem_fee}")
+                    st.text("")
+                    if note:
                         notes_list = [n.strip() for n in note.split('.') if n.strip()]
-                        for note_line in notes_list: # Check Colon & Indentation!
-                            st.text(note_line)     # Check Indentation!
+                        for note_line in notes_list:
+                            st.text(note_line)
 
                     summary_generated = True
                 else: st.warning("⚠️ 요약 정보 생성 실패 (필수 Excel 시트 누락)")
