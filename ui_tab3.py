@@ -1,4 +1,5 @@
-# ui_tab3.py (Corrected All single-line 'with' syntax errors)
+# ui_tab3.py ( render_tab3 함수 전체 - 요약 형식 수정됨 )
+
 import streamlit as st
 import pandas as pd
 import io
@@ -13,10 +14,8 @@ try:
     import calculations
     import pdf_generator # Needed for generate_excel (used in summary) and generate_pdf
     import excel_filler # Needed for the final excel generation
-    # Import MOVE_TYPE_OPTIONS from state_manager
-    from state_manager import MOVE_TYPE_OPTIONS
-    # Import callbacks needed in this tab
-    from callbacks import sync_move_type, update_basket_quantities
+    from state_manager import MOVE_TYPE_OPTIONS # Import MOVE_TYPE_OPTIONS
+    from callbacks import sync_move_type, update_basket_quantities # Import callbacks
 except ImportError as ie:
     st.error(f"UI Tab 3: 필수 모듈 로딩 실패 - {ie}")
     st.stop()
@@ -24,7 +23,6 @@ except Exception as e:
     st.error(f"UI Tab 3: 모듈 로딩 중 오류 발생 - {e}")
     traceback.print_exc()
     st.stop()
-
 
 def render_tab3():
     """Renders the UI for Tab 3: Costs, Options, and Downloads."""
@@ -35,31 +33,16 @@ def render_tab3():
     st.subheader("🏢 이사 유형 확인/변경")
     current_move_type = st.session_state.get('base_move_type')
     current_index_tab3 = 0 # Default index
-    # Ensure MOVE_TYPE_OPTIONS is loaded and valid before using it
-    # Check existence and type using 'in globals()' and isinstance for safety
     if 'MOVE_TYPE_OPTIONS' in globals() and MOVE_TYPE_OPTIONS and isinstance(MOVE_TYPE_OPTIONS, (list, tuple)):
         try:
             current_index_tab3 = MOVE_TYPE_OPTIONS.index(current_move_type)
         except ValueError:
-            # Handle case where current_move_type is not in options
             current_index_tab3 = 0
-            if MOVE_TYPE_OPTIONS: # Ensure options exist before assigning default
-                 st.session_state.base_move_type = MOVE_TYPE_OPTIONS[0]
-                 print("Warning: Resetting base_move_type in Tab 3 due to invalid state.")
-            else:
-                 st.error("이사 유형 옵션을 data.py에서 찾을 수 없습니다.")
-
-        # Render radio only if options are available
-        st.radio(
-            "기본 이사 유형:",
-            options=MOVE_TYPE_OPTIONS, index=current_index_tab3, horizontal=True,
-            key="base_move_type_widget_tab3",
-            on_change=sync_move_type,
-            args=("base_move_type_widget_tab3",)
-        )
-    else:
-         st.error("이사 유형 옵션을 정의할 수 없습니다. data.py 또는 state_manager.py 파일을 확인하세요.")
-
+            if MOVE_TYPE_OPTIONS:
+                 st.session_state.base_move_type = MOVE_TYPE_OPTIONS[0]; print("Warning: Resetting base_move_type in Tab 3 due to invalid state.")
+            else: st.error("이사 유형 옵션을 data.py에서 찾을 수 없습니다.")
+        st.radio( "기본 이사 유형:", options=MOVE_TYPE_OPTIONS, index=current_index_tab3, horizontal=True, key="base_move_type_widget_tab3", on_change=sync_move_type, args=("base_move_type_widget_tab3",) )
+    else: st.error("이사 유형 옵션을 정의할 수 없습니다. data.py 또는 state_manager.py 파일을 확인하세요.")
     st.divider()
 
     # --- Vehicle Selection ---
@@ -67,23 +50,12 @@ def render_tab3():
         st.subheader("🚚 차량 선택")
         col_v1_widget, col_v2_widget = st.columns([1, 2])
         with col_v1_widget:
-            # Corrected typo: 차반 -> 차량
-            st.radio(
-                "차량 선택 방식:", # Correct label
-                ["자동 추천 차량 사용", "수동으로 차량 선택"], # Correct options
-                key="vehicle_select_radio",
-                help="자동 추천을 사용하거나, 목록에서 직접 차량을 선택합니다.",
-                on_change=update_basket_quantities
-            )
+            st.radio( "차량 선택 방식:", ["자동 추천 차량 사용", "수동으로 차량 선택"], key="vehicle_select_radio", help="자동 추천을 사용하거나, 목록에서 직접 차량을 선택합니다.", on_change=update_basket_quantities )
         with col_v2_widget:
-            # (Vehicle selection display logic - unchanged)
-            current_move_type_widget = st.session_state.base_move_type
-            vehicle_prices_options_widget = data.vehicle_prices.get(current_move_type_widget, {})
+            current_move_type_widget = st.session_state.base_move_type; vehicle_prices_options_widget = data.vehicle_prices.get(current_move_type_widget, {})
             available_trucks_widget = sorted(vehicle_prices_options_widget.keys(), key=lambda x: data.vehicle_specs.get(x, {}).get("capacity", 0))
-            use_auto_widget = st.session_state.get('vehicle_select_radio') == "자동 추천 차량 사용"
-            recommended_vehicle_auto_widget = st.session_state.get('recommended_vehicle_auto')
-            final_vehicle_widget = st.session_state.get('final_selected_vehicle')
-            valid_auto_widget = (recommended_vehicle_auto_widget and "초과" not in recommended_vehicle_auto_widget and recommended_vehicle_auto_widget in available_trucks_widget)
+            use_auto_widget = st.session_state.get('vehicle_select_radio') == "자동 추천 차량 사용"; recommended_vehicle_auto_widget = st.session_state.get('recommended_vehicle_auto')
+            final_vehicle_widget = st.session_state.get('final_selected_vehicle'); valid_auto_widget = (recommended_vehicle_auto_widget and "초과" not in recommended_vehicle_auto_widget and recommended_vehicle_auto_widget in available_trucks_widget)
             if use_auto_widget:
                 if valid_auto_widget:
                     st.success(f"✅ 자동 선택됨: **{final_vehicle_widget}**"); spec = data.vehicle_specs.get(final_vehicle_widget)
@@ -118,109 +90,46 @@ def render_tab3():
                        if spec_manual: st.caption(f"선택차량 최대 용량: {spec_manual.get('capacity', 'N/A')}m³, {spec_manual.get('weight_capacity', 'N/A'):,}kg"); st.caption(f"현재 이사짐 예상: {st.session_state.get('total_volume',0.0):.2f}m³, {st.session_state.get('total_weight',0.0):.2f}kg")
     st.divider()
 
-    # --- Work Conditions & Options (Corrected single-line 'with' usages) ---
+    # --- Work Conditions & Options (Corrected structure) ---
     with st.container(border=True):
-        st.subheader("🛠️ 작업 조건 및 추가 옵션")
-        sky_from = st.session_state.get('from_method') == "스카이 🏗️"
-        sky_to = st.session_state.get('to_method') == "스카이 🏗️"
+        st.subheader("🛠️ 작업 조건 및 추가 옵션"); sky_from = st.session_state.get('from_method') == "스카이 🏗️"; sky_to = st.session_state.get('to_method') == "스카이 🏗️"
         if sky_from or sky_to:
-            st.warning("스카이 작업 선택됨 - 시간 입력 필요", icon="🏗️")
-            cols_sky = st.columns(2)
+            st.warning("스카이 작업 선택됨 - 시간 입력 필요", icon="🏗️"); cols_sky = st.columns(2)
             with cols_sky[0]:
                 if sky_from: st.number_input("출발 스카이 시간(h)", min_value=1, step=1, key="sky_hours_from")
             with cols_sky[1]:
                 if sky_to: st.number_input("도착 스카이 시간(h)", min_value=1, step=1, key="sky_hours_final")
-            st.write("") # Spacer after sky inputs
-
-        # --- vvv CORRECTED BLOCK (Line 130 area) vvv ---
-        col_add1, col_add2 = st.columns(2) # Define columns first
-        with col_add1:                  # Use 'with' on a new line
-            # Indent the content for col1
-            st.number_input(
-                "추가 남성 인원 👨",
-                min_value=0, step=1, key="add_men",
-                help="기본 인원 외 추가로 필요한 남성 작업자 수"
-            )
-        with col_add2:                  # Use 'with' on a new line
-            # Indent the content for col2
-            st.number_input(
-                "추가 여성 인원 👩",
-                min_value=0, step=1, key="add_women",
-                help="기본 인원 외 추가로 필요한 여성 작업자 수"
-            )
-        st.write("") # Spacer after personnel inputs
-        # --- ^^^ CORRECTED BLOCK ^^^ ---
-
-        # --- vvv CORRECTED BLOCK vvv ---
-        st.subheader("🚚 실제 투입 차량")
-        dispatched_cols = st.columns(4) # Define columns first
-        with dispatched_cols[0]:         # Use 'with' on a new line
-            st.number_input("1톤", min_value=0, step=1, key="dispatched_1t")
-        with dispatched_cols[1]:         # Use 'with' on a new line
-            st.number_input("2.5톤", min_value=0, step=1, key="dispatched_2_5t")
-        with dispatched_cols[2]:         # Use 'with' on a new line
-            st.number_input("3.5톤", min_value=0, step=1, key="dispatched_3_5t")
-        with dispatched_cols[3]:         # Use 'with' on a new line
-            st.number_input("5톤", min_value=0, step=1, key="dispatched_5t")
-        st.caption("견적 계산과 별개로, 실제 현장에 투입될 차량 대수를 입력합니다.")
-        st.write("") # Spacer after dispatched inputs
-        # --- ^^^ CORRECTED BLOCK ^^^ ---
-
-        # (Rest of options logic - unchanged structure)
+            st.write("")
+        col_add1, col_add2 = st.columns(2)
+        with col_add1: st.number_input("추가 남성 인원 👨", min_value=0, step=1, key="add_men", help="기본 인원 외 추가로 필요한 남성 작업자 수")
+        with col_add2: st.number_input("추가 여성 인원 👩", min_value=0, step=1, key="add_women", help="기본 인원 외 추가로 필요한 여성 작업자 수")
+        st.write("")
+        st.subheader("🚚 실제 투입 차량"); dispatched_cols = st.columns(4)
+        with dispatched_cols[0]: st.number_input("1톤", min_value=0, step=1, key="dispatched_1t")
+        with dispatched_cols[1]: st.number_input("2.5톤", min_value=0, step=1, key="dispatched_2_5t")
+        with dispatched_cols[2]: st.number_input("3.5톤", min_value=0, step=1, key="dispatched_3_5t")
+        with dispatched_cols[3]: st.number_input("5톤", min_value=0, step=1, key="dispatched_5t")
+        st.caption("견적 계산과 별개로, 실제 현장에 투입될 차량 대수를 입력합니다."); st.write("")
         base_w = 0; remove_opt = False; final_vehicle_for_options = st.session_state.get('final_selected_vehicle'); current_move_type_options = st.session_state.base_move_type; vehicle_prices_options_display = data.vehicle_prices.get(current_move_type_options, {})
-        if final_vehicle_for_options and final_vehicle_for_options in vehicle_prices_options_display:
-            base_info = vehicle_prices_options_display.get(final_vehicle_for_options, {}); base_w = base_info.get('housewife', 0);
+        if final_vehicle_for_options and final_vehicle_for_options in vehicle_prices_options_display: base_info = vehicle_prices_options_display.get(final_vehicle_for_options, {}); base_w = base_info.get('housewife', 0);
         if base_w > 0: remove_opt = True
-        if remove_opt:
-            discount_amount = data.ADDITIONAL_PERSON_COST * base_w
-            st.checkbox(f"기본 여성({base_w}명) 제외 (비용 할인: -{discount_amount:,}원)", key="remove_base_housewife")
+        if remove_opt: discount_amount = data.ADDITIONAL_PERSON_COST * base_w; st.checkbox(f"기본 여성({base_w}명) 제외 (비용 할인: -{discount_amount:,}원)", key="remove_base_housewife")
         else:
              if 'remove_base_housewife' in st.session_state: st.session_state.remove_base_housewife = False
-
-        # --- vvv CORRECTED BLOCK vvv ---
-        col_waste1, col_waste2 = st.columns([1, 2]) # Define columns first
-        with col_waste1:                         # Use 'with' on a new line
-            st.checkbox("폐기물 처리 필요 🗑️", key="has_waste_check", help="톤 단위 직접 입력 방식입니다.")
-        with col_waste2:                         # Use 'with' on a new line
-            # Indent content for col2
-            if st.session_state.get('has_waste_check'):
-                st.number_input("폐기물 양 (톤)", min_value=0.5, max_value=10.0, step=0.5, key="waste_tons_input", format="%.1f")
-                st.caption(f"💡 1톤당 {data.WASTE_DISPOSAL_COST_PER_TON:,}원 추가 비용 발생")
-        # --- ^^^ CORRECTED BLOCK ^^^ ---
-
-        st.write("📅 **날짜 유형 선택** (중복 가능, 해당 시 할증)")
-        date_options = ["이사많은날 🏠", "손없는날 ✋", "월말 📅", "공휴일 🎉", "금요일 📅"]; date_keys = [f"date_opt_{i}_widget" for i in range(len(date_options))]; cols_date = st.columns(len(date_options));
-        # Use loop with correct 'with' syntax
-        for i, option in enumerate(date_options):
-             with cols_date[i]: # Correct usage
-                 st.checkbox(option, key=date_keys[i])
+        col_waste1, col_waste2 = st.columns([1, 2])
+        with col_waste1: st.checkbox("폐기물 처리 필요 🗑️", key="has_waste_check", help="톤 단위 직접 입력 방식입니다.")
+        with col_waste2:
+            if st.session_state.get('has_waste_check'): st.number_input("폐기물 양 (톤)", min_value=0.5, max_value=10.0, step=0.5, key="waste_tons_input", format="%.1f"); st.caption(f"💡 1톤당 {data.WASTE_DISPOSAL_COST_PER_TON:,}원 추가 비용 발생")
+        st.write("📅 **날짜 유형 선택** (중복 가능, 해당 시 할증)"); date_options = ["이사많은날 🏠", "손없는날 ✋", "월말 📅", "공휴일 🎉", "금요일 📅"]; date_keys = [f"date_opt_{i}_widget" for i in range(len(date_options))]; cols_date = st.columns(len(date_options));
+        for i, option in enumerate(date_options): with cols_date[i]: st.checkbox(option, key=date_keys[i])
     st.divider()
 
-    # --- Cost Adjustment & Deposit (Corrected single-line 'with' usage) ---
+    # --- Cost Adjustment & Deposit ---
     with st.container(border=True):
-        st.subheader("💰 비용 조정 및 계약금")
-        col_adj1, col_adj2, col_adj3 = st.columns(3) # Define columns first
-        with col_adj1:                           # Use 'with' on a new line
-            # Indent content for col1
-            st.number_input(
-                "📝 계약금",
-                min_value=0, step=10000, key="deposit_amount",
-                format="%d", help="고객에게 받을 계약금 입력"
-            )
-        with col_adj2:                           # Use 'with' on a new line
-            # Indent content for col2
-            st.number_input(
-                "💰 추가 조정 (+/-)",
-                step=10000, key="adjustment_amount",
-                help="견적 금액 외 추가 할증(+) 또는 할인(-) 금액 입력", format="%d"
-            )
-        with col_adj3:                           # Use 'with' on a new line
-            # Indent content for col3
-            st.number_input(
-                "🪜 사다리 추가요금",
-                min_value=0, step=10000, key="regional_ladder_surcharge",
-                format="%d", help="추가되는 사다리차 비용"
-            )
+        st.subheader("💰 비용 조정 및 계약금"); col_adj1, col_adj2, col_adj3 = st.columns(3)
+        with col_adj1: st.number_input( "📝 계약금", min_value=0, step=10000, key="deposit_amount", format="%d", help="고객에게 받을 계약금 입력" )
+        with col_adj2: st.number_input( "💰 추가 조정 (+/-)", step=10000, key="adjustment_amount", help="견적 금액 외 추가 할증(+) 또는 할인(-) 금액 입력", format="%d" )
+        with col_adj3: st.number_input( "🪜 사다리 추가요금", min_value=0, step=10000, key="regional_ladder_surcharge", format="%d", help="추가되는 사다리차 비용" )
     st.divider()
 
     # --- Final Quote Results ---
@@ -243,7 +152,7 @@ def render_tab3():
         special_notes_display = st.session_state.get('special_notes')
         if special_notes_display and special_notes_display.strip(): st.subheader("📝 고객요구사항"); st.info(special_notes_display)
 
-        # --- Move Info Summary (Corrected Format Applied) ---
+        # --- Move Info Summary (UPDATED FORMAT) ---
         st.subheader("📋 이사 정보 요약")
         summary_generated = False
         try:
@@ -256,24 +165,38 @@ def render_tab3():
                 if "견적 정보" in xls.sheet_names and "비용 내역 및 요약" in xls.sheet_names:
                     df_info = xls.parse("견적 정보", header=None); df_cost = xls.parse("비용 내역 및 요약", header=None)
                     info_dict = dict(zip(df_info[0].astype(str), df_info[1].astype(str))) if not df_info.empty and len(df_info.columns) > 1 else {}
-                    # Helper functions
-                    def format_money_kor(amount):
-                        try: amount_str = str(amount).replace(",", "").split()[0]; amount_float = float(amount_str); amount_int = int(amount_float)
-                        except: return "금액오류"
-                        if amount_int >= 10000: return f"{amount_int // 10000}만원"
-                        elif amount_int != 0: return f"{amount_int}원"
-                        else: return "0원"
-                    def format_address(addr): return str(addr).strip() if isinstance(addr, str) and addr.strip() and addr.lower() != 'nan' else ""
-                    def get_cost_abbr(kw, abbr, df):
+
+                    # --- vvv UPDATED HELPER FUNCTIONS for COST FORMATTING vvv ---
+                    def format_money_no_unit(amount):
+                        """Formats amount as comma-separated integer, removes units."""
+                        try:
+                            amount_str = str(amount).replace(",", "").split()[0]
+                            amount_float = float(amount_str)
+                            amount_int = int(amount_float)
+                            return f"{amount_int:,}" # Return comma-formatted number string
+                        except (ValueError, TypeError, IndexError):
+                            return "금액오류"
+
+                    def get_cost_abbr_no_unit(kw, abbr, df):
+                        """Gets cost abbreviation using the new no-unit formatting."""
                         if df.empty or len(df.columns) < 2: return f"{abbr} 정보 없음"
                         for i in range(len(df)):
-                            if pd.notna(df.iloc[i, 0]) and str(df.iloc[i, 0]).strip().startswith(kw): return f"{abbr} {format_money_kor(df.iloc[i, 1])}"
+                            if pd.notna(df.iloc[i, 0]) and str(df.iloc[i, 0]).strip().startswith(kw):
+                                formatted_amount = format_money_no_unit(df.iloc[i, 1])
+                                return f"{abbr} {formatted_amount}" # e.g., "계 20,000"
                         return f"{abbr} 정보 없음"
+                    # --- ^^^ UPDATED HELPER FUNCTIONS ^^^ ---
+
+                    # Other helper functions (unchanged)
+                    def format_address(addr): return str(addr).strip() if isinstance(addr, str) and addr.strip() and addr.lower() != 'nan' else ""
                     def format_method(m):
                         m = str(m).strip(); return "사" if "사다리차" in m else "승" if "승강기" in m else "계" if "계단" in m else "스카이" if "스카이" in m else "?"
 
-                    from_addr = format_address(info_dict.get("출발지", st.session_state.get('from_location',''))); to_addr = format_address(info_dict.get("도착지", st.session_state.get('to_location','')))
-                    phone = info_dict.get("고객 연락처", st.session_state.get('customer_phone','')); vehicle_type = final_selected_vehicle_calc
+                    # --- Extract data ---
+                    from_addr = format_address(info_dict.get("출발지", st.session_state.get('from_location','')))
+                    to_addr = format_address(info_dict.get("도착지", st.session_state.get('to_location','')))
+                    phone = info_dict.get("고객 연락처", st.session_state.get('customer_phone',''))
+                    vehicle_type = final_selected_vehicle_calc
                     note = format_address(info_dict.get("고객요구사항", st.session_state.get('special_notes','')))
                     p_info = personnel_info if isinstance(personnel_info, dict) else {}; men = p_info.get('final_men', 0); women = p_info.get('final_women', 0); ppl = f"{men}+{women}" if women > 0 else f"{men}"
                     b_name = "포장 자재 📦"; move_t = st.session_state.base_move_type
@@ -284,38 +207,47 @@ def render_tab3():
                     if q_c > 0: bask_parts.append(f"옷{q_c}")
                     if q_k > 0: bask_parts.append(f"책{q_k}")
                     bask = " ".join(bask_parts)
-                    cont_fee = get_cost_abbr("계약금 (-)", "계", df_cost); rem_fee = get_cost_abbr("잔금 (VAT 별도)", "잔", df_cost)
+                    # Use the new cost abbreviation function
+                    cont_fee_str = get_cost_abbr_no_unit("계약금 (-)", "계", df_cost)
+                    rem_fee_str = get_cost_abbr_no_unit("잔금 (VAT 별도)", "잔", df_cost)
                     w_from = format_method(info_dict.get("출발 작업", st.session_state.get('from_method',''))); w_to = format_method(info_dict.get("도착 작업", st.session_state.get('to_method',''))); work = f"출{w_from}도{w_to}"
+                    # --- End Extract data ---
 
-                    # Display Summary (Corrected Format and Syntax)
-                    from_addr_short = from_addr.split()[0] if from_addr else ""
-                    to_addr_short = to_addr.split()[0] if to_addr else ""
-                    first_line = f"{from_addr_short} {to_addr_short} {vehicle_type}" # Format Line 1
+                    # --- Construct and display summary (Applying new format) ---
+                    # Line 1: Full Addresses - Tonnage
+                    first_line = f"{from_addr} - {to_addr} {vehicle_type}" # Use full addresses and tonnage
                     st.text(first_line)
                     st.text("")
+
+                    # Line 2: Phone
                     if phone and phone != '-':
                         st.text(phone)
                         st.text("")
-                    if from_addr:
-                        st.text(from_addr)
-                    if to_addr:
-                        st.text(to_addr)
-                    if from_addr or to_addr:
-                        st.text("")
-                    personnel_line = f"{vehicle_type} {ppl}" # Format Line 5
+
+                    # Line 3: Vehicle Tonnage + Personnel Count
+                    personnel_line = f"{vehicle_type} {ppl}" # Combine vehicle and personnel
                     st.text(personnel_line)
                     st.text("")
+
+                    # Line 4: Baskets
                     if bask:
                         st.text(bask)
                         st.text("")
+
+                    # Line 5: Work method
                     st.text(work)
                     st.text("")
-                    st.text(f"{cont_fee} / {rem_fee}")
+
+                    # Line 6: Costs (Using new strings without units)
+                    st.text(f"{cont_fee_str} / {rem_fee_str}") # Use variables from get_cost_abbr_no_unit
                     st.text("")
+
+                    # Line 7 onwards: Special Notes
                     if note:
                         notes_list = [n.strip() for n in note.split('.') if n.strip()]
                         for note_line in notes_list:
                             st.text(note_line)
+                    # --- End construct and display ---
 
                     summary_generated = True
                 else: st.warning("⚠️ 요약 정보 생성 실패 (필수 Excel 시트 누락)")
@@ -325,11 +257,12 @@ def render_tab3():
         st.divider()
 
         # --- Download Section ---
+        # (Download section remains unchanged)
         st.subheader("📄 견적서 파일 다운로드"); has_cost_error = any(isinstance(item, (list, tuple)) and len(item)>0 and str(item[0]) == "오류" for item in cost_items) if cost_items else False
         can_gen_pdf = bool(final_selected_vehicle_calc) and not has_cost_error; can_gen_final_excel = bool(final_selected_vehicle_calc)
         cols_dl = st.columns(3)
         with cols_dl[0]:
-            st.markdown("**① Final 견적서 (Excel)**")
+            st.markdown("**① Final 견적서 (Excel)**");
             if can_gen_final_excel:
                 if st.button("📄 생성: Final 견적서"):
                     latest_total_cost_fe, latest_cost_items_fe, latest_personnel_info_fe = calculations.calculate_total_moving_cost(st.session_state.to_dict())
@@ -344,7 +277,7 @@ def render_tab3():
                 elif not st.session_state.get('final_excel_data'): st.caption("생성 버튼 클릭")
             else: st.caption("Excel 생성 불가 (차량 미선택)")
         with cols_dl[1]:
-            st.markdown("**② 고객용 견적서 (PDF)**")
+            st.markdown("**② 고객용 견적서 (PDF)**");
             if can_gen_pdf:
                 if st.button("📄 생성: PDF 견적서"):
                     latest_total_cost_pdf, latest_cost_items_pdf, latest_personnel_info_pdf = calculations.calculate_total_moving_cost(st.session_state.to_dict())
