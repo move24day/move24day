@@ -1,4 +1,4 @@
-# ui_tab1.py (Updated with max 5 images limit)
+# ui_tab1.py (Using st.form, static key, max 5 images)
 import streamlit as st
 from datetime import datetime, date
 import pytz
@@ -33,7 +33,6 @@ def render_tab1():
         col_load, col_save = st.columns(2)
 
         # --- Load Section ---
-        # (Load section remains the same as previous version)
         with col_load:
             st.markdown("**견적 불러오기**")
             search_term = st.text_input("JSON 검색어 (날짜 YYMMDD 또는 번호 XXXX)", key="gdrive_search_term", help="파일 이름 일부 입력 후 검색")
@@ -73,7 +72,7 @@ def render_tab1():
                         load_success = load_state_from_data(loaded_content, update_basket_quantities)
                         if load_success:
                             st.success("✅ 견적 데이터 로딩 완료.")
-                            # No counter increment needed now
+                            # No counter increment needed
                             image_filenames_to_load = st.session_state.get("gdrive_image_files", [])
                             if image_filenames_to_load:
                                 st.session_state.loaded_images = {}
@@ -97,7 +96,6 @@ def render_tab1():
                         # Error handled in load_state_from_data
                     # else: Error handled in load_json_file
 
-
         # --- Save Section (With st.form and image limit) ---
         with col_save:
             st.markdown("**현재 견적 저장**")
@@ -120,10 +118,9 @@ def render_tab1():
                     key='uploaded_images' # Static key
                 )
 
-                # --- Add Warning if more than 5 files are selected ---
+                # Warning if more than 5 files are selected
                 if uploaded_image_files_in_form and len(uploaded_image_files_in_form) > 5:
                     st.warning("⚠️ 사진은 최대 5장까지만 첨부 및 저장됩니다. 5장을 초과한 파일은 저장되지 않습니다.", icon="⚠️")
-                # -----------------------------------------------------
 
                 st.caption("JSON(견적 데이터) 파일이 덮어쓰기됩니다. 사진은 매번 새로 업로드됩니다.")
 
@@ -135,11 +132,10 @@ def render_tab1():
                     # Access the uploader's value at the time of submission
                     current_uploaded_files = uploaded_image_files_in_form or []
 
-                    # --- Apply 5-file limit HERE ---
+                    # Apply 5-file limit
                     if len(current_uploaded_files) > 5:
                         st.warning("5장을 초과한 이미지는 제외하고 저장합니다.", icon="⚠️")
                     files_to_upload = current_uploaded_files[:5] # Take only the first 5 files
-                    # -------------------------------
 
                     # (Validation)
                     customer_phone = st.session_state.get('customer_phone', '')
@@ -154,49 +150,36 @@ def render_tab1():
                         base_save_name = f"{date_str}-{phone_part}"
                         json_filename = f"{base_save_name}.json"
 
-                        # --- Image Upload Loop (Using the limited list) ---
+                        # Image Upload Loop (Using the limited list)
                         saved_image_names = []
-                        # Use the length of the potentially sliced list
-                        num_images_to_upload = len(files_to_upload)
+                        num_images_to_upload = len(files_to_upload) # Use length of limited list
                         img_upload_bar = None
                         if num_images_to_upload > 0:
                              img_upload_bar = st.progress(0, text=f"🖼️ 이미지 업로드 중... (0/{num_images_to_upload})")
                         upload_errors = False
-                        # Iterate over the potentially sliced list
-                        for i, uploaded_file in enumerate(files_to_upload):
-                            original_filename = uploaded_file.name
-                            _, extension = os.path.splitext(original_filename)
-                            drive_image_filename = f"{base_save_name}_사진{i+1}{extension}" # Numbering up to 5
+                        for i, uploaded_file in enumerate(files_to_upload): # Iterate limited list
+                            original_filename = uploaded_file.name; _, extension = os.path.splitext(original_filename)
+                            drive_image_filename = f"{base_save_name}_사진{i+1}{extension}"
                             with st.spinner(f"이미지 '{drive_image_filename}' 업로드 중..."):
-                                 image_bytes = uploaded_file.getvalue()
-                                 save_img_result = gdrive.save_image_file(drive_image_filename, image_bytes)
+                                 image_bytes = uploaded_file.getvalue(); save_img_result = gdrive.save_image_file(drive_image_filename, image_bytes)
                             if save_img_result and save_img_result.get('id'):
                                  saved_image_names.append(drive_image_filename)
-                                 if img_upload_bar:
-                                     progress_val = (i + 1) / num_images_to_upload
-                                     img_upload_bar.progress(progress_val, text=f"🖼️ 이미지 업로드 중... ({i+1}/{num_images_to_upload})")
-                            else:
-                                 st.error(f"❌ 이미지 '{original_filename}' 업로드 실패.")
-                                 upload_errors = True
-                            time.sleep(0.1) # Keep small delay
-                        # --- End Image Upload Loop ---
-
+                                 if img_upload_bar: progress_val = (i + 1) / num_images_to_upload; img_upload_bar.progress(progress_val, text=f"🖼️ 이미지 업로드 중... ({i+1}/{num_images_to_upload})")
+                            else: st.error(f"❌ 이미지 '{original_filename}' 업로드 실패."); upload_errors = True
+                            time.sleep(0.1)
                         if img_upload_bar: img_upload_bar.empty()
                         if not upload_errors and num_images_to_upload > 0: st.success(f"✅ 이미지 {num_images_to_upload}개 업로드 완료.")
                         elif upload_errors: st.warning("⚠️ 일부 이미지 업로드에 실패했습니다.")
 
-                        # (JSON Save - logic remains the same)
-                        st.session_state.gdrive_image_files = saved_image_names # Save names of successfully uploaded (up to 5) images
+                        # (JSON Save)
+                        st.session_state.gdrive_image_files = saved_image_names
                         state_data_to_save = prepare_state_for_save()
                         try:
-                            with st.spinner(f"🔄 '{json_filename}' 견적 데이터 저장 중..."):
-                                save_json_result = gdrive.save_json_file(json_filename, state_data_to_save)
-                            if save_json_result and save_json_result.get('id'):
-                                st.success(f"✅ '{json_filename}' 저장/업데이트 완료.")
+                            with st.spinner(f"🔄 '{json_filename}' 견적 데이터 저장 중..."): save_json_result = gdrive.save_json_file(json_filename, state_data_to_save)
+                            if save_json_result and save_json_result.get('id'): st.success(f"✅ '{json_filename}' 저장/업데이트 완료.")
                             else: st.error(f"❌ '{json_filename}' 저장 중 오류 발생.")
                         except TypeError as json_err: st.error(f"❌ 저장 실패: 데이터를 JSON으로 변환 중 오류 발생 - {json_err}")
                         except Exception as save_err: st.error(f"❌ '{json_filename}' 파일 저장 중 예외 발생: {save_err}")
-
             # --- End Form ---
 
     st.divider()
@@ -225,18 +208,14 @@ def render_tab1():
     st.divider()
 
     # --- Display Loaded Images ---
-    # (Remains the same)
+    # (Remains the same - uses use_container_width)
     if st.session_state.get("loaded_images"):
-        st.subheader("🖼️ 불러온 사진")
-        loaded_images_dict = st.session_state.loaded_images
-        num_cols = min(len(loaded_images_dict), 4) # Adjust columns as needed
+        st.subheader("🖼️ 불러온 사진"); loaded_images_dict = st.session_state.loaded_images
+        num_cols = min(len(loaded_images_dict), 4)
         if num_cols > 0:
-            cols = st.columns(num_cols)
-            i = 0
+            cols = st.columns(num_cols); i = 0
             for filename, img_bytes in loaded_images_dict.items():
-                with cols[i % num_cols]:
-                    # 아래 라인이 210번째 줄 근처일 가능성이 높습니다.
-                    st.image(img_bytes, caption=filename, use_container_width=True) # Use use_container_width
+                with cols[i % num_cols]: st.image(img_bytes, caption=filename, use_container_width=True)
                 i += 1
         st.divider()
 
