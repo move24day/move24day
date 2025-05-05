@@ -86,11 +86,10 @@ def render_tab3():
             valid_auto_widget = (recommended_vehicle_auto_widget and "초과" not in recommended_vehicle_auto_widget and recommended_vehicle_auto_widget in available_trucks_widget)
             if use_auto_widget:
                 if valid_auto_widget:
-                    st.success(f"✅ 자동 선택됨: **{final_vehicle_widget}**")
-                    spec = data.vehicle_specs.get(final_vehicle_widget)
+                    st.success(f"✅ 자동 선택됨: **{final_vehicle_widget}**"); spec = data.vehicle_specs.get(final_vehicle_widget)
                     if spec: st.caption(f"선택차량 최대 용량: {spec.get('capacity', 'N/A')}m³, {spec.get('weight_capacity', 'N/A'):,}kg"); st.caption(f"현재 이사짐 예상: {st.session_state.get('total_volume',0.0):.2f}m³, {st.session_state.get('total_weight',0.0):.2f}kg")
                 else:
-                    error_msg = "⚠️ 자동 추천 불가: "
+                    error_msg = "⚠️ 자동 추천 불가: ";
                     if recommended_vehicle_auto_widget and "초과" in recommended_vehicle_auto_widget: error_msg += f"물량 초과({recommended_vehicle_auto_widget}). 수동 선택 필요."
                     elif not recommended_vehicle_auto_widget and (st.session_state.get('total_volume', 0.0) > 0 or st.session_state.get('total_weight', 0.0) > 0): error_msg += "계산/정보 부족. 수동 선택 필요."
                     else: error_msg += "물품 미선택 또는 정보 부족. 수동 선택 필요."; st.error(error_msg)
@@ -183,6 +182,7 @@ def render_tab3():
         with col_waste1:                         # Use 'with' on a new line
             st.checkbox("폐기물 처리 필요 🗑️", key="has_waste_check", help="톤 단위 직접 입력 방식입니다.")
         with col_waste2:                         # Use 'with' on a new line
+            # Indent content for col2
             if st.session_state.get('has_waste_check'):
                 st.number_input("폐기물 양 (톤)", min_value=0.5, max_value=10.0, step=0.5, key="waste_tons_input", format="%.1f")
                 st.caption(f"💡 1톤당 {data.WASTE_DISPOSAL_COST_PER_TON:,}원 추가 비용 발생")
@@ -243,7 +243,7 @@ def render_tab3():
         special_notes_display = st.session_state.get('special_notes')
         if special_notes_display and special_notes_display.strip(): st.subheader("📝 고객요구사항"); st.info(special_notes_display)
 
-        # --- Move Info Summary (Corrected Format) ---
+        # --- Move Info Summary (Corrected Format Applied) ---
         st.subheader("📋 이사 정보 요약")
         summary_generated = False
         try:
@@ -256,6 +256,7 @@ def render_tab3():
                 if "견적 정보" in xls.sheet_names and "비용 내역 및 요약" in xls.sheet_names:
                     df_info = xls.parse("견적 정보", header=None); df_cost = xls.parse("비용 내역 및 요약", header=None)
                     info_dict = dict(zip(df_info[0].astype(str), df_info[1].astype(str))) if not df_info.empty and len(df_info.columns) > 1 else {}
+                    # Helper functions
                     def format_money_kor(amount):
                         try: amount_str = str(amount).replace(",", "").split()[0]; amount_float = float(amount_str); amount_int = int(amount_float)
                         except: return "금액오류"
@@ -289,7 +290,7 @@ def render_tab3():
                     # Display Summary (Corrected Format and Syntax)
                     from_addr_short = from_addr.split()[0] if from_addr else ""
                     to_addr_short = to_addr.split()[0] if to_addr else ""
-                    first_line = f"{from_addr_short} {to_addr_short} {vehicle_type}"
+                    first_line = f"{from_addr_short} {to_addr_short} {vehicle_type}" # Format Line 1
                     st.text(first_line)
                     st.text("")
                     if phone and phone != '-':
@@ -301,7 +302,8 @@ def render_tab3():
                         st.text(to_addr)
                     if from_addr or to_addr:
                         st.text("")
-                    st.text(f"{ppl}")
+                    personnel_line = f"{vehicle_type} {ppl}" # Format Line 5
+                    st.text(personnel_line)
                     st.text("")
                     if bask:
                         st.text(bask)
