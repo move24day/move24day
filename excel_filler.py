@@ -1,224 +1,270 @@
-# excel_filler.py (수정 사항 전체 반영된 예시 파일)
+# excel_filler.py (병합된 셀 오류 수정, 실제 투입 차량 H7 추가, 셀 매핑 수정, date import 추가)
 
-import openpyxl # Excel 처리 라이브러리
-import io       # 메모리 내 파일 처리를 위함
-import re       # 정규 표현식 (차량 톤수 추출용)
-import streamlit as st # 오류 메시지 표시용 (선택적)
-# import math # 필요 시 사용
+import openpyxl
+import io
+import streamlit as st
+import os
+import traceback # 상세 오류 출력을 위해 추가
+from datetime import date # 날짜 타입 비교를 위해 date 임포트
 
-# --- 설정 값 ---
+try:
+    # data.py 파일 임포트 시도 (App.py와 같은 위치에 있어야 함)
+    import data # data.py 필요
+except ImportError:
+    # data.py 로드 실패 시 사용자에게 알리고 None으로 설정
+    st.error("data.py 파일을 찾을 수 없습니다. excel_filler.py와 같은 폴더에 있는지 확인하세요.")
+    data = None # data 모듈이 없음을 표시
 
-# 실제 템플릿 파일 이름 및 경로 (스크립트와 같은 위치에 있다고 가정)
-TEMPLATE_FILE_PATH = 'final.xlsx'
+# --- 헬퍼 함수 정의 ---
+def get_item_qty(state_data, item_name_to_find):
+    """state_data에서 특정 품목명의 수량을 찾아 반환 (Robust search across sections)"""
+    if not data or not hasattr(data, 'item_definitions') or not hasattr(data, 'items'): return 0
+    current_move_type = state_data.get('base_move_type');
+    if not current_move_type: return 0
 
-# 실제 템플릿 파일 안에 있는 시트 이름 (따옴표 안에 정확히 입력)
-# 이전 'SHEET1' 오류를 바탕으로 'Sheet1'로 가정. 실제와 다르면 수정 필요.
-TARGET_SHEET_NAME = 'Sheet1'
+    # Search specifically defined sections first
+    item_definitions_for_type = data.item_definitions.get(current_move_type, {})
+    if isinstance(item_definitions_for_type, dict):
+        for section, item_list in item_definitions_for_type.items():
+            # if section == "폐기 처리 품목 🗑️": continue # Skip waste
+            if isinstance(item_list, list):
+                 if item_name_to_find in item_list:
+                     # Construct the key based on the found section
+                     key = f"qty_{current_move_type}_{section}_{item_name_to_find}"
+                     if key in state_data:
+                         try: return int(state_data.get(key, 0) or 0)
+                         except (ValueError, TypeError): return 0
+                     # else:
+                         # print(f"Debug: Key '{key}' constructed but not found in state_data for item '{item_name_to_find}'")
 
-# --- 템플릿 채우기 함수 ---
+    # print(f"Warning: Item '{item_name_to_find}' quantity not found in state_data.")
+    return 0 # Return 0 if not found
 
-def fill_final_excel_template(state_data, cost_items, total_cost, personnel_info):
+def get_tv_qty(state_data):
+    """모든 크기의 TV 수량을 합산하여 반환"""
+    if not data or not hasattr(data, 'items') or not isinstance(data.items, dict): return 0
+    total_tv_qty = 0
+    # Find all keys in data.items that start with "TV("
+    tv_keys = [key for key in data.items if key.startswith("TV(")]
+    for tv_item_name in tv_keys:
+        total_tv_qty += get_item_qty(state_data, tv_item_name) # Use the robust get_item_qty
+    return total_tv_qty
+# --- 헬퍼 함수 끝 ---
+
+
+def fill_final_excel_template(state_data, calculated_cost_items, total_cost, personnel_info):
     """
-    세션 상태 데이터를 기반으로 Final 견적서 Excel 템플릿('final.xlsx')을 채웁니다.
-    B7(차량 톤수), D8(장롱 수량 1/3), B26+(고객요구사항 줄바꿈) 수정 포함.
-
-    Args:
-        state_data (dict): 현재 세션 상태를 나타내는 딕셔너리.
-        cost_items (list): 계산된 비용 항목 리스트.
-        total_cost (float): 계산된 총 비용.
-        personnel_info (dict): 인원 정보 딕셔너리.
-
-    Returns:
-        bytes or None: 생성된 Excel 파일의 바이트 데이터 또는 오류 발생 시 None.
+    final.xlsx 템플릿을 열고, 주어진 이사 데이터로 고정된 셀에 값을 채운 후
+    (모든 열을 오른쪽으로 한 칸 이동 가정) 메모리상의 완성된 엑셀 파일을 반환합니다.
     """
-    print(f"INFO [Excel Filler]: Starting Excel generation with template '{TEMPLATE_FILE_PATH}', sheet '{TARGET_SHEET_NAME}'")
+    if not data:
+         st.error("data.py 모듈 로드 실패로 Excel 생성을 진행할 수 없습니다.")
+         return None
+
     try:
-        # --- 1. 템플릿 파일 로드 ---
-        try:
-            wb = openpyxl.load_workbook(TEMPLATE_FILE_PATH)
-            # 지정된 이름의 시트 가져오기
-            sheet = wb[TARGET_SHEET_NAME]
-            print(f"INFO [Excel Filler]: Template loaded and sheet '{TARGET_SHEET_NAME}' accessed.")
-        except FileNotFoundError:
-            error_msg = f"엑셀 템플릿 파일을 찾을 수 없습니다: '{TEMPLATE_FILE_PATH}'"
-            st.error(error_msg)
-            print(f"ERROR [Excel Filler]: {error_msg}")
+        # Assume final.xlsx is in the same directory as the script
+        script_dir = os.path.dirname(__file__) if "__file__" in locals() else "."
+        final_xlsx_path = os.path.join(script_dir, "final.xlsx")
+
+
+        if not os.path.exists(final_xlsx_path):
+            st.error(f"템플릿 파일 '{final_xlsx_path}'을 찾을 수 없습니다.")
+            print(f"Error: Template file not found at '{final_xlsx_path}'") # Debugging
             return None
-        except KeyError:
-            error_msg = f"엑셀 템플릿에 '{TARGET_SHEET_NAME}' 시트가 없습니다. 시트 이름을 확인하세요."
-            st.error(error_msg)
-            print(f"ERROR [Excel Filler]: {error_msg}")
-            return None
-        except Exception as e:
-             error_msg = f"엑셀 템플릿 로드 중 오류 발생: {e}"
-             st.error(error_msg)
-             print(f"ERROR [Excel Filler]: {error_msg}")
-             return None
 
-        # --- 2. (기존 로직) 다른 셀들 채우기 ---
-        # !!! 중요: 여기에 기존 템플릿의 다른 셀들(고객명, 날짜, 비용 항목 등)을 채우는 코드를 넣으세요. !!!
-        # 예시:
-        # sheet['C4'] = state_data.get('customer_name', '') # 고객명 (실제 셀 주소는 템플릿에 맞게)
-        # sheet['C5'] = state_data.get('customer_phone', '') # 연락처 (실제 셀 주소는 템플릿에 맞게)
-        # ... 비용 항목(cost_items) 및 총 비용(total_cost) 등을 채우는 로직 ...
-        print("INFO [Excel Filler]: Placeholder for filling other cells.")
+        wb = openpyxl.load_workbook(final_xlsx_path)
+        ws = wb.active
 
+        # --- 1. 기본 정보 입력 (모든 열 +1 가정 - Adjust cell refs accordingly) ---
+        # Example: B2 becomes C2, I1 becomes J1 etc.
+        # I1 -> J1: 이사 종류
+        move_type_str = (
+            ("보관 " if state_data.get('is_storage_move') else "") +
+            ("사무실 " if "사무실" in state_data.get('base_move_type', "") else "") +
+            ("장거리 " if state_data.get('apply_long_distance') else "") +
+            ("가정" if "가정" in state_data.get('base_move_type', "") else "")
+        ).strip() or state_data.get('base_move_type', "") # Fallback if logic fails
+        ws['J1'] = move_type_str
 
-        # --- 3. 요청된 수정 사항 적용 ---
+        # B2 -> C2: 고객명
+        ws['C2'] = state_data.get('customer_name', '')
+        # f2 -> G2: 전화번호
+        ws['G2'] = state_data.get('customer_phone', '')
 
-        # 3-1. 차량 톤수 처리 (B7 셀)
-        vehicle_str = state_data.get('final_selected_vehicle', '')
-        print(f"DEBUG [Excel Filler B7]: Received vehicle_str = '{vehicle_str}', Type = {type(vehicle_str)}")
-        vehicle_tonnage = ''
-        if isinstance(vehicle_str, str) and vehicle_str.strip():
-            try:
-                match = re.search(r'(\d+(\.\d+)?)', vehicle_str) # 숫자와 소수점 부분 찾기
-                if match:
-                    vehicle_tonnage = match.group(1) # 찾은 숫자 부분 사용
-                    print(f"DEBUG [Excel Filler B7]: Regex matched, tonnage = '{vehicle_tonnage}'")
-                else: # 정규식 실패 시 '톤' 글자 제거 시도
-                    print(f"DEBUG [Excel Filler B7]: Regex failed, trying replace method.")
-                    vehicle_tonnage_replaced = vehicle_str.replace('톤', '').strip()
-                    if re.fullmatch(r'\d+(\.\d+)?', vehicle_tonnage_replaced): # 제거 후 숫자인지 확인
-                        vehicle_tonnage = vehicle_tonnage_replaced
-                        print(f"DEBUG [Excel Filler B7]: Replace succeeded, tonnage = '{vehicle_tonnage}'")
-                    else:
-                        print(f"DEBUG [Excel Filler B7]: Replace result '{vehicle_tonnage_replaced}' is not a valid number.")
-                        vehicle_tonnage = '' # 유효하지 않으면 빈 값
-            except Exception as e:
-                print(f"ERROR [Excel Filler B7]: Error processing vehicle_str '{vehicle_str}': {e}")
-                vehicle_tonnage = '' # 오류 시 빈 값
-        elif vehicle_str: # None 이나 빈 문자열이 아닌 다른 타입 처리 시도
-            print(f"Warning [Excel Filler B7]: vehicle_str is not a string: '{vehicle_str}'. Attempting conversion.")
-            try: # 문자열 변환 후 로직 재시도
-                temp_str = str(vehicle_str)
-                match = re.search(r'(\d+(\.\d+)?)', temp_str)
-                if match: vehicle_tonnage = match.group(1)
-                else:
-                    vehicle_tonnage = temp_str.replace('톤', '').strip()
-                    if not re.fullmatch(r'\d+(\.\d+)?', vehicle_tonnage): vehicle_tonnage = ''
-            except Exception as e:
-                print(f"ERROR [Excel Filler B7]: Error converting/processing non-string vehicle_str: {e}")
-                vehicle_tonnage = ''
+        # J2 -> K2: 날짜 (Template might use =TODAY(), so skip setting it)
+        # ws['K2'] = ... # Deleted
 
-        print(f"DEBUG [Excel Filler B7]: Final vehicle_tonnage to write = '{vehicle_tonnage}'")
-        try:
-            sheet['B7'] = vehicle_tonnage # B7 셀에 최종 값 쓰기
-        except Exception as e:
-            print(f"ERROR [Excel Filler B7]: Failed to write tonnage to cell B7: {e}")
+        # J3 -> K3: 이사일
+        moving_date_val = state_data.get('moving_date')
+        # Format date if it's a date object
+        # *** Check if moving_date_val is an instance of the imported 'date' ***
+        if isinstance(moving_date_val, date):
+             ws['K3'] = moving_date_val.strftime('%Y-%m-%d')
+        elif moving_date_val:
+             ws['K3'] = str(moving_date_val) # Use string representation if not date object
+        else: ws['K3'] = ''
 
+        # B3 -> C3: 출발지
+        ws['C3'] = state_data.get('from_location', '')
+        # B4 -> C4: 도착지
+        ws['C4'] = state_data.get('to_location', '')
+        # K5 -> L5: 작업인원 남
+        try: ws['L5'] = int(personnel_info.get('final_men', 0) or 0)
+        except (ValueError, TypeError): ws['L5'] = 0
+        # K6 -> L6: 작업인원 여
+        try: ws['L6'] = int(personnel_info.get('final_women', 0) or 0)
+        except (ValueError, TypeError): ws['L6'] = 0
+        # c5 -> D5: 출발지 층수 ("층" 포함 if needed)
+        from_floor_str = str(state_data.get('from_floor', '')).strip()
+        ws['D5'] = f"{from_floor_str}층" if from_floor_str else ''
 
-        # 3-2. 장롱 수량 처리 (D8 셀)
-        current_move_type = state_data.get('base_move_type', '')
-        jangrong_formatted_qty = "0.0" # 기본값
+        # c6 -> D6: 도착지 층수 ("층" 포함 if needed)
+        to_floor_str = str(state_data.get('to_floor', '')).strip()
+        ws['D6'] = f"{to_floor_str}층" if to_floor_str else '' # Added "층" for consistency
 
-        # --- !!! 중요: 아래 키 구성이 실제 state_manager.py 와 data.py 정의와 일치하는지 확인 !!! ---
-        # '주요 품목'은 data.py 에서 장롱이 포함된 실제 섹션 이름이어야 합니다.
-        wardrobe_section_name = "주요 품목" # 예시: 실제 섹션 이름으로 변경 필요
-        jangrong_key = f"qty_{current_move_type}_{wardrobe_section_name}_장롱"
-        # --- 확인 필요 끝 ---
-        print(f"DEBUG [Excel Filler D8]: Using wardrobe key = '{jangrong_key}'")
+        # D5 -> E5: 출발지 작업방법
+        ws['E5'] = state_data.get('from_method', '')
+        # D6 -> E6: 도착지 작업방법
+        ws['E6'] = state_data.get('to_method', '')
+        # A7 -> B7: 선택 차량 (견적 계산 기준 차량)
+        selected_vehicle = state_data.get('final_selected_vehicle', '')
+        ws['B7'] = selected_vehicle if selected_vehicle else ''
 
-        if current_move_type: # 이사 유형이 있어야 키 구성 가능
-            original_qty_str = state_data.get(jangrong_key) # state_data에서 값 가져오기
-            if original_qty_str is not None: # 키가 존재하면
-                try:
-                    original_qty = int(original_qty_str) # 정수로 변환
-                    calculated_qty = original_qty / 3.0 # 3으로 나누기
-                    # 소수점 첫째 자리까지 문자열로 포맷
-                    jangrong_formatted_qty = f"{calculated_qty:.1f}"
-                    print(f"DEBUG [Excel Filler D8]: Original={original_qty}, Calculated={calculated_qty:.1f}")
-                except (ValueError, TypeError): # 변환 실패 시
-                    print(f"Warning [Excel Filler D8]: Could not convert qty '{original_qty_str}' for key '{jangrong_key}'.")
-                    jangrong_formatted_qty = "0.0" # 오류 시 0.0
-            else: # 키가 state_data에 없으면
-                print(f"Warning [Excel Filler D8]: Key '{jangrong_key}' not found in state_data.")
-        else: # 이사 유형이 없으면
-             print(f"Warning [Excel Filler D8]: Cannot determine wardrobe key, current_move_type is empty.")
-
-        print(f"DEBUG [Excel Filler D8]: Final wardrobe qty to write = '{jangrong_formatted_qty}'")
-        try:
-            sheet['D8'] = jangrong_formatted_qty # D8 셀에 최종 값 쓰기
-        except Exception as e:
-            print(f"ERROR [Excel Filler D8]: Failed to write wardrobe quantity to cell D8: {e}")
+        # *** G7 -> H7: 실제 투입 차량 정보 ***
+        dispatched_parts = []
+        dispatched_1t = state_data.get('dispatched_1t', 0)
+        dispatched_2_5t = state_data.get('dispatched_2_5t', 0)
+        dispatched_3_5t = state_data.get('dispatched_3_5t', 0)
+        dispatched_5t = state_data.get('dispatched_5t', 0)
+        if dispatched_1t > 0: dispatched_parts.append(f"1톤: {dispatched_1t}")
+        if dispatched_2_5t > 0: dispatched_parts.append(f"2.5톤: {dispatched_2_5t}")
+        if dispatched_3_5t > 0: dispatched_parts.append(f"3.5톤: {dispatched_3_5t}")
+        if dispatched_5t > 0: dispatched_parts.append(f"5톤: {dispatched_5t}")
+        ws['H7'] = ", ".join(dispatched_parts) if dispatched_parts else '' # H7 셀에 기록
 
 
-        # 3-3. 고객요구사항 줄바꿈 처리 (B26 셀부터)
-        special_notes = state_data.get('special_notes', '')
-        start_row_notes = 26 # 쓰기 시작할 행 번호
-        print(f"DEBUG [Excel Filler B26+]: Received special_notes = '{special_notes[:50]}...'") # 앞 50자만 출력
+        # --- 2. 비용 정보 입력 (모든 열 +1 가정) ---
+        basic_fare = 0; ladder_from = 0; ladder_to = 0; sky_cost=0; storage_cost=0; long_dist_cost=0; waste_cost=0; add_person_cost=0; date_surcharge=0; regional_surcharge=0; adjustment=0
 
-        # --- 이전에 작성된 노트 내용 지우기 (선택적이지만 권장) ---
-        max_possible_note_lines = 20 # 예시: 최대 20줄 가정 (필요시 조정)
-        for i in range(max_possible_note_lines):
-             clear_cell_addr = f"B{start_row_notes + i}"
-             try:
-                 if sheet[clear_cell_addr].value is not None:
-                      sheet[clear_cell_addr].value = None # 셀 내용 지우기
-             except Exception as e:
-                  print(f"Warning [Excel Filler B26+]: Could not clear cell {clear_cell_addr}: {e}")
-        # --- 이전 노트 지우기 끝 ---
+        if calculated_cost_items and isinstance(calculated_cost_items, list):
+            for item in calculated_cost_items:
+                if isinstance(item, (list, tuple)) and len(item) >= 2:
+                    label, amount_raw = item[0], item[1]
+                    try: amount = int(amount_raw)
+                    except (ValueError, TypeError): amount = 0
 
-        if special_notes: # 요구사항이 있는 경우
-            # 마침표(.) 기준으로 나누고, 각 부분의 앞뒤 공백 제거, 빈 부분은 제외
-            notes_parts = [part.strip() for part in special_notes.split('.') if part.strip()]
-            print(f"DEBUG [Excel Filler B26+]: Split into {len(notes_parts)} parts.")
-
-            # 각 부분을 B열의 해당 행에 순차적으로 쓰기
-            for i, part in enumerate(notes_parts):
-                target_cell_notes = f"B{start_row_notes + i}" # 대상 셀 주소 계산 (B26, B27, ...)
-                try:
-                    sheet[target_cell_notes] = part # 셀에 쓰기
-                    print(f"DEBUG [Excel Filler B26+]: Writing '{part[:30]}...' to {target_cell_notes}")
-                except Exception as e:
-                    print(f"ERROR [Excel Filler B26+]: Failed to write special note to {target_cell_notes}: {e}")
-        else: # 요구사항이 없는 경우
-             print(f"DEBUG [Excel Filler B26+]: No special notes to write.")
+                    # Map cost items to specific variables
+                    if label == '기본 운임': basic_fare = amount
+                    elif label == '출발지 사다리차': ladder_from = amount
+                    elif label == '도착지 사다리차': ladder_to = amount
+                    elif label == '스카이 장비': sky_cost = amount
+                    elif label == '보관료': storage_cost = amount
+                    elif label == '장거리 운송료': long_dist_cost = amount
+                    elif label == '폐기물 처리(톤)': waste_cost = amount
+                    elif label == '추가 인력': add_person_cost = amount
+                    elif label == '날짜 할증': date_surcharge = amount
+                    elif label == '지방 사다리 추가요금': regional_surcharge = amount
+                    elif "조정" in label: adjustment += amount # Capture both 할증/할인
 
 
-        # --- 4. 수정된 Workbook을 메모리 버퍼에 저장 ---
-        excel_buffer = io.BytesIO() # 메모리 버퍼 생성
-        wb.save(excel_buffer)       # 버퍼에 Excel 파일 저장
-        excel_buffer.seek(0)        # 버퍼의 포인터를 처음으로 이동
-        print("INFO [Excel Filler]: Excel file generated successfully in memory.")
-        return excel_buffer.getvalue() # 버퍼의 바이트 데이터를 반환
+        # e22 -> F22: 기본운임
+        ws['F22'] = basic_fare
+        # e23 -> F23: 출발지 작업운임(사다리차/스카이 등)
+        ws['F23'] = ladder_from # Or maybe ladder_from + relevant sky_cost? Check template logic
+        # e24 -> F24: 도착지 작업운임(사다리차/스카이 등)
+        ws['F24'] = ladder_to # Or maybe ladder_to + relevant sky_cost? Check template logic
 
-    # --- 5. 예외 처리 ---
+        # Add other potential costs if template has cells for them (example cells)
+        # ws['FXX'] = sky_cost # If separate sky cell
+        # ws['FYY'] = storage_cost # If separate storage cell
+        # ws['FZZ'] = long_dist_cost # If separate long distance cell
+        # ws['FAA'] = waste_cost
+        # ws['FBB'] = add_person_cost
+        # ws['FCC'] = date_surcharge # Or maybe added to base fare in template?
+        # ws['FDD'] = regional_surcharge
+        # ws['FEE'] = adjustment # If separate adjustment cell
+
+        # i23 -> J23: 계약금
+        try: deposit_amount = int(state_data.get('deposit_amount', 0))
+        except (ValueError, TypeError): deposit_amount = 0
+        ws['J23'] = deposit_amount
+
+        # e25 -> F25: 총 견적비용
+        try: total_cost_num = int(total_cost)
+        except (ValueError, TypeError): total_cost_num = 0
+        ws['F25'] = total_cost_num
+
+        # I24 -> J24: 잔금
+        remaining_balance = total_cost_num - deposit_amount
+        ws['J24'] = remaining_balance
+
+        # --- 3. 고객 요구사항 입력 (B26 셀 하나에만 기록) ---
+        special_notes_str = state_data.get('special_notes', '')
+        # *** 병합된 셀 오류 수정을 위해 B26 셀에만 값을 씀 ***
+        ws['B26'] = special_notes_str.strip() if special_notes_str else ''
+        # ws['B27'] = '' # Clear other potential cells if they were part of merge
+        # ws['B28'] = '' # Clear other potential cells if they were part of merge
+
+
+        # --- 4. 품목 수량 입력 (모든 열 +1 가정 및 품목 매핑 수정 + 바구니 추가) ---
+        # Ensure all item names match data.py exactly
+        # Verify cell references (D8, H8 etc.) match the template AFTER shifting columns
+
+        # C -> D 열로 이동
+        ws['D8'] = get_item_qty(state_data, '장롱')
+        ws['D9'] = get_item_qty(state_data, '더블침대')
+        ws['D10'] = get_item_qty(state_data, '서랍장')
+        ws['D11'] = get_item_qty(state_data, '서랍장(3단)')
+        ws['D12'] = get_item_qty(state_data, '4도어 냉장고')
+        ws['D13'] = get_item_qty(state_data, '김치냉장고(일반형)')
+        ws['D14'] = get_item_qty(state_data, '김치냉장고(스탠드형)')
+        ws['D15'] = get_item_qty(state_data, '소파(3인용)')
+        ws['D16'] = get_item_qty(state_data, '소파(1인용)')
+        ws['D17'] = get_item_qty(state_data, '식탁(4인)') # Check if this includes chairs
+        ws['D18'] = get_item_qty(state_data, '에어컨')
+        ws['D19'] = get_item_qty(state_data, '장식장')
+        ws['D20'] = get_item_qty(state_data, '피아노(디지털)')
+        ws['D21'] = get_item_qty(state_data, '세탁기 및 건조기') # Check if this is combined or separate
+
+        # g -> H 열로 이동
+        # ws['H8'] = get_item_qty(state_data, '책바구니') # *** MOVED to H20 ***
+        ws['H9'] = get_item_qty(state_data, '사무실책상')
+        ws['H10'] = get_item_qty(state_data, '책상&의자') # Check if this is combined
+        ws['H11'] = get_item_qty(state_data, '책장')
+        # ws['H14'] = 0 # Original comment - cell likely reused or empty
+        ws['H15'] = get_item_qty(state_data, '바구니') # Mapped 바구니 to H15
+        ws['H16'] = get_item_qty(state_data, '중박스') # Mapped 중박스 to H16
+        # Remove or remap H17 if it was a duplicate '중박스'
+        # ws['H17'] = get_item_qty(state_data, 'ANOTHER_ITEM') # Example if H17 is for something else
+        ws['H19'] = get_item_qty(state_data, '화분')
+        ws['H20'] = get_item_qty(state_data, '책바구니') # *** MOVED from H8 ***
+
+        # k -> L 열로 이동
+        ws['L8'] = get_item_qty(state_data, '스타일러')
+        ws['L9'] = get_item_qty(state_data, '안마기')
+        ws['L10'] = get_item_qty(state_data, '피아노(일반)')
+        # ws['L11'] = ? # Verify L11 content
+        ws['L12'] = get_tv_qty(state_data) # *** MOVED from L19 ***
+        # ... check L13-L15 ...
+        ws['L16'] = get_item_qty(state_data, '금고')
+        ws['L17'] = get_item_qty(state_data, '앵글')
+        # ws['L18'] = ? # Verify L18 content
+        # ws['L19'] = get_tv_qty(state_data) # *** MOVED to L12 ***
+
+        # --- 5. 완료된 엑셀 파일을 메모리에 저장 ---
+        output = io.BytesIO()
+        wb.save(output)
+        output.seek(0) # Reset buffer position to the beginning
+        return output.getvalue() # Return bytes
+
+    except FileNotFoundError:
+         st.error(f"Excel 템플릿 파일 '{final_xlsx_path}'을(를) 찾을 수 없습니다. 스크립트와 같은 폴더에 있는지 확인하세요.")
+         print(f"Error: Template file not found at '{final_xlsx_path}' during generation.")
+         return None
     except Exception as e:
-        # 예상치 못한 오류 발생 시 처리
-        error_msg = f"Excel 파일 생성 중 예기치 않은 오류 발생: {e}"
-        st.error(error_msg) # Streamlit UI에 오류 표시 (선택적)
-        import traceback
-        traceback.print_exc() # 콘솔에 전체 오류 스택 출력
-        print(f"FATAL ERROR [Excel Filler]: Unexpected error during Excel generation: {e}")
+        # *** 오류 메시지에 상세 정보 추가 ***
+        st.error(f"Excel 생성 중 오류 발생: {e}")
+        print(f"Error during Excel generation: {e}")
+        traceback.print_exc() # Print detailed traceback to console/log
         return None
-
-# --- (파일의 끝) ---
-
-# 예시: 이 함수를 테스트하기 위한 간단한 방법 (실제 앱에서는 app.py 등에서 호출됨)
-if __name__ == '__main__':
-    # 테스트용 가상 데이터 생성
-    mock_state_data = {
-        'final_selected_vehicle': '5톤 트럭',
-        'base_move_type': '가정 이사 🏠',
-        'qty_가정 이사 🏠_주요 품목_장롱': '10', # 장롱 키는 실제 키로 맞춰야 함
-        'special_notes': '첫번째 요구사항입니다. 두번째 입니다. 세번째. 네번째 문장.'
-        # ... 기타 필요한 state_data 값들 ...
-    }
-    mock_cost_items = []
-    mock_total_cost = 0
-    mock_personnel_info = {}
-
-    print("--- Running Test ---")
-    excel_bytes = fill_final_excel_template(mock_state_data, mock_cost_items, mock_total_cost, mock_personnel_info)
-
-    if excel_bytes:
-        # 테스트 결과 파일로 저장해보기 (선택적)
-        try:
-            with open("test_output.xlsx", "wb") as f:
-                f.write(excel_bytes)
-            print("--- Test finished. Output saved to test_output.xlsx ---")
-        except Exception as write_e:
-            print(f"--- Test finished. Could not save output file: {write_e} ---")
-    else:
-        print("--- Test failed. No Excel data generated. ---")
+    # No finally block needed as BytesIO handles closing internally
