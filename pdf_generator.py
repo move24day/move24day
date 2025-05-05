@@ -1,4 +1,4 @@
-# pdf_generator.py (기본 운임 비고 수정 + 고객 요구사항 줄바꿈 + utils.get_item_qty 호출)
+# pdf_generator.py (기본 운임 비고 수정 + 고객 요구사항 줄바꿈 + utils.get_item_qty 호출 확인)
 
 import pandas as pd
 import io
@@ -109,11 +109,18 @@ def generate_pdf(state_data, calculated_cost_items, total_cost, personnel_info):
                      except Exception as e: print(f"Error merging date surcharge: {e}")
                  break
         if date_surcharge_index != -1:
-              try: del temp_items[date_surcharge_index]
-              except IndexError: print(f"Warning: Could not remove date surcharge item at index {date_surcharge_index}")
+              # 리스트 길이를 확인하여 IndexError 방지
+              if date_surcharge_index < len(temp_items):
+                  try: del temp_items[date_surcharge_index]
+                  except IndexError: print(f"Warning: Could not remove date surcharge item at index {date_surcharge_index}")
+              else: print(f"Warning: date_surcharge_index {date_surcharge_index} out of range for temp_items (len: {len(temp_items)})")
+
+        # 최종 그릴 항목 리스트 생성
         for item_desc, item_cost, *item_note_tuple in temp_items:
-             item_note = item_note_tuple[0] if item_note_tuple else ""; try: item_cost_int = int(item_cost)
-             except: item_cost_int = 0; cost_items_processed.append((str(item_desc), item_cost_int, str(item_note)))
+             item_note = item_note_tuple[0] if item_note_tuple else "";
+             try: item_cost_int = int(item_cost)
+             except: item_cost_int = 0
+             cost_items_processed.append((str(item_desc), item_cost_int, str(item_note)))
         # --- 비용 항목 처리 끝 ---
 
         # --- 비용 테이블 그리기 ---
@@ -155,11 +162,12 @@ def generate_pdf(state_data, calculated_cost_items, total_cost, personnel_info):
         c.save(); buffer.seek(0); return buffer.getvalue()
     except Exception as e: st.error(f"PDF 생성 중 예외 발생: {e}"); print(f"Error during PDF generation: {e}"); traceback.print_exc(); return None
 
+
 # --- 엑셀 생성 함수 (generate_excel) ---
 def generate_excel(state_data, calculated_cost_items, total_cost, personnel_info):
     """
     주어진 데이터를 기반으로 요약 정보를 Excel 형식으로 생성합니다.
-    (ui_tab3.py의 요약 표시에 사용됨)
+    (ui_tab3.py의 요약 표시에 사용됨, utils.get_item_qty 호출)
     """
     output = io.BytesIO()
     try:
@@ -217,11 +225,11 @@ def generate_excel(state_data, calculated_cost_items, total_cost, personnel_info
             for sheet_name in writer.sheets:
                 worksheet = writer.sheets[sheet_name]
                 for col in worksheet.columns:
-                    max_length = 0; column = col[0].column_letter; try: header_value = worksheet[f"{column}1"].value; header_len = len(str(header_value)) if header_value is not None else 0; except: header_len = 0; max_length = header_len
+                    max_length = 0; column = col[0].column_letter; try: header_value = worksheet[f"{column}1"].value; header_len = len(str(header_value)) if header_value is not None else 0; except Exception: header_len = 0; max_length = header_len
                     for cell in col:
                         try:
                             if cell.value is not None: cell_value_str = str(cell.value); lines = cell_value_str.split('\n'); cell_len = max(len(line) for line in lines) if lines else 0; if cell_len > max_length: max_length = cell_len
-                        except: pass
+                        except Exception: pass
                     adjusted_width = (max_length + 2) * 1.2; adjusted_width = min(adjusted_width, 60); adjusted_width = max(adjusted_width, header_len + 2); worksheet.column_dimensions[column].width = adjusted_width
 
         excel_data = output.getvalue()
@@ -232,3 +240,4 @@ def generate_excel(state_data, calculated_cost_items, total_cost, personnel_info
         if output: output.close()
 
 # pdf_generator.py 파일 끝
+
