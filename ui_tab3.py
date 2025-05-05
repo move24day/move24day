@@ -1,4 +1,4 @@
-# ui_tab3.py (Summary format updated - Final Request Applied)
+# ui_tab3.py (Summary format updated - Final Request Applied, Address lines added)
 import streamlit as st
 import pandas as pd
 import io
@@ -141,7 +141,6 @@ def render_tab3():
         col_waste1, col_waste2 = st.columns([1, 2])
         with col_waste1: st.checkbox("폐기물 처리 필요 🗑️", key="has_waste_check", help="톤 단위 직접 입력 방식입니다.")
         with col_waste2:
-        # --- vvv CORRECTED BLOCK (Line 124 area) vvv ---
          st.write("📅 **날짜 유형 선택** (중복 가능, 해당 시 할증)")
         date_options = ["이사많은날 🏠", "손없는날 ✋", "월말 📅", "공휴일 🎉", "금요일 📅"]
         date_keys = [f"date_opt_{i}_widget" for i in range(len(date_options))]
@@ -150,7 +149,6 @@ def render_tab3():
         for i, option in enumerate(date_options):
             with cols_date[i]:
                 st.checkbox(option, key=date_keys[i])
-        # --- ^^^ CORRECTED BLOCK ^^^ ---
 
     # --- Cost Adjustment & Deposit ---
     with st.container(border=True):
@@ -228,52 +226,71 @@ def render_tab3():
                     note = format_address(info_dict.get("고객요구사항", st.session_state.get('special_notes','')))
                     p_info = personnel_info if isinstance(personnel_info, dict) else {}; men = p_info.get('final_men', 0); women = p_info.get('final_women', 0); ppl = f"{men}+{women}" if women > 0 else f"{men}"
                     b_name = "포장 자재 📦"; move_t = st.session_state.base_move_type
-                    q_b = int(st.session_state.get(f"qty_{move_t}_{b_name}_바구니", 0)); q_m = int(st.session_state.get(f"qty_{move_t}_{b_name}_중박스", 0)); q_c = int(st.session_state.get(f"qty_{move_t}_{b_name}_옷바구니", 0)); q_k = int(st.session_state.get(f"qty_{move_t}_{b_name}_책바구니", 0))
+                    # Ensure quantity keys use correct format (adjust if your keys differ)
+                    # Assuming keys like "qty_이사유형_포장 자재 📦_바구니" etc.
+                    q_b = int(st.session_state.get(f"qty_{move_t}_{b_name}_바구니", 0))
+                    q_m = int(st.session_state.get(f"qty_{move_t}_{b_name}_중박스", 0))
+                    # Check for both '옷바구니' and '중자바구니' as they might be used interchangeably or both exist
+                    q_c = int(st.session_state.get(f"qty_{move_t}_{b_name}_옷바구니", st.session_state.get(f"qty_{move_t}_{b_name}_중자바구니", 0))) # 옷바구니 우선, 없으면 중자바구니
+                    q_k = int(st.session_state.get(f"qty_{move_t}_{b_name}_책바구니", 0))
                     bask_parts = [];
                     if q_b > 0: bask_parts.append(f"바{q_b}")
                     if q_m > 0: bask_parts.append(f"중{q_m}")
-                    if q_c > 0: bask_parts.append(f"옷{q_c}")
+                    if q_c > 0: bask_parts.append(f"옷{q_c}") # '옷'으로 통일
                     if q_k > 0: bask_parts.append(f"책{q_k}")
                     bask = " ".join(bask_parts)
                     cont_fee_str = get_cost_abbr_manwon_unit("계약금 (-)", "계", df_cost) # Use 만원 format
                     rem_fee_str = get_cost_abbr_manwon_unit("잔금 (VAT 별도)", "잔", df_cost) # Use 만원 format
                     w_from = format_method(info_dict.get("출발 작업", st.session_state.get('from_method',''))); w_to = format_method(info_dict.get("도착 작업", st.session_state.get('to_method',''))); work = f"출{w_from}도{w_to}"
 
-                    # --- vvv Construct and display summary (Applying FINAL format) vvv ---
+                    # --- vvv Construct and display summary (Applying FINAL format with address lines) vvv ---
                     # Line 1: Full Addresses - Tonnage
                     addr_separator = " - " if from_addr and to_addr else " "
                     first_line = f"{from_addr}{addr_separator}{to_addr} {vehicle_type}"
                     st.text(first_line.strip())
-                    st.text("")
+                    st.text("") # 빈 줄 추가
 
                     # Line 2: Phone
                     if phone and phone != '-':
                         st.text(phone)
-                        st.text("")
+                        st.text("") # 빈 줄 추가
 
-                    # Line 3: Vehicle Tonnage + Personnel Count
+                    # --- vvv INSERTED/MODIFIED BLOCK vvv ---
+                    # Line 3: Departure Address (if exists)
+                    if from_addr:
+                        st.text(from_addr)
+                        st.text("") # 주소 뒤에 빈 줄 추가
+
+                    # Line 4: Destination Address (if exists)
+                    if to_addr:
+                        st.text(to_addr)
+                        st.text("") # 주소 뒤에 빈 줄 추가
+                    # --- ^^^ INSERTED/MODIFIED BLOCK ^^^ ---
+
+                    # Line 5: Vehicle Tonnage + Personnel Count
                     personnel_line = f"{vehicle_type} {ppl}"
                     st.text(personnel_line)
-                    st.text("")
+                    st.text("") # 빈 줄 추가
 
-                    # Line 4: Baskets
+                    # Line 6: Baskets
                     if bask:
                         st.text(bask)
-                        st.text("")
+                        st.text("") # 빈 줄 추가
 
-                    # Line 5: Work method
+                    # Line 7: Work method
                     st.text(work)
-                    st.text("")
+                    st.text("") # 빈 줄 추가
 
-                    # Line 6: Costs (Using new strings - manwon scale, no unit)
+                    # Line 8: Costs (Using new strings - manwon scale, no unit)
                     st.text(f"{cont_fee_str} / {rem_fee_str}")
-                    st.text("")
+                    st.text("") # 빈 줄 추가
 
-                    # Line 7 onwards: Special Notes
+                    # Line 9 onwards: Special Notes
                     if note:
                         notes_list = [n.strip() for n in note.split('.') if n.strip()]
                         for note_line in notes_list:
                             st.text(note_line)
+                            # 각 요구사항 줄 뒤에는 빈 줄을 추가하지 않음 (기존 방식 유지)
                     # --- ^^^ End construct and display ^^^ ---
 
                     summary_generated = True
