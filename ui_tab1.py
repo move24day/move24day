@@ -1,4 +1,4 @@
-# ui_tab1.py (Using st.form, removed key from file_uploader, max 5 images, added email input)
+# ui_tab1.py (Using st.form, removed key from file_uploader, max 5 images)
 import streamlit as st
 from datetime import datetime, date
 import pytz
@@ -11,16 +11,14 @@ try:
     import data
     import utils
     import google_drive_helper as gdrive # Use alias
-    # *** 'callbacks' import is needed if used within this file, ensure it's correct ***
-    import callbacks # Assuming callbacks are potentially used indirectly or directly
     from state_manager import (
         MOVE_TYPE_OPTIONS,
         STATE_KEYS_TO_SAVE,
         prepare_state_for_save,
         load_state_from_data
     )
-    # Ensure callbacks needed are imported (example, adjust if needed)
-    # from callbacks import sync_move_type, update_selected_gdrive_id, update_basket_quantities
+    # Ensure callbacks needed are imported
+    from callbacks import sync_move_type, update_selected_gdrive_id, update_basket_quantities
 except ImportError as ie:
     st.error(f"UI Tab 1: 필수 모듈 로딩 실패 - {ie}")
     st.stop()
@@ -64,12 +62,9 @@ def render_tab1():
                      try: current_selection_index = file_options_display.index(st.session_state.gdrive_selected_filename)
                      except ValueError: current_selection_index = 0
                  # Use a unique key for the selectbox widget
-                 # *** Ensure update_selected_gdrive_id exists in callbacks ***
-                 on_change_callback_gdrive = getattr(callbacks, 'update_selected_gdrive_id', None)
-                 st.selectbox( "불러올 JSON 파일 선택:", options=file_options_display, key="gdrive_selected_filename_widget", index=current_selection_index, on_change=on_change_callback_gdrive )
+                 st.selectbox( "불러올 JSON 파일 선택:", options=file_options_display, key="gdrive_selected_filename_widget", index=current_selection_index, on_change=update_selected_gdrive_id )
                  # Initial sync if needed
-                 if st.session_state.gdrive_selected_filename and not st.session_state.gdrive_selected_file_id and on_change_callback_gdrive: on_change_callback_gdrive()
-
+                 if st.session_state.gdrive_selected_filename and not st.session_state.gdrive_selected_file_id: update_selected_gdrive_id()
             load_button_disabled = not bool(st.session_state.get('gdrive_selected_file_id'))
             if st.button("📂 선택 견적 불러오기", disabled=load_button_disabled, key="load_gdrive_btn"):
                 json_file_id = st.session_state.gdrive_selected_file_id
@@ -78,14 +73,7 @@ def render_tab1():
                     with st.spinner(f"🔄 견적 데이터 로딩 중..."): loaded_content = gdrive.load_json_file(json_file_id)
                     if loaded_content:
                         # Pass the callback reference correctly
-                        # *** Ensure update_basket_quantities exists in callbacks ***
-                        update_basket_callback_ref = getattr(callbacks, 'update_basket_quantities', None)
-                        if not update_basket_callback_ref:
-                             st.error("Basket update callback not found!")
-                             # Handle error or use a dummy callback
-                             update_basket_callback_ref = lambda: None
-
-                        load_success = load_state_from_data(loaded_content, update_basket_callback_ref)
+                        load_success = load_state_from_data(loaded_content, callbacks.update_basket_quantities)
                         if load_success:
                             st.success("✅ 견적 데이터 로딩 완료.")
                             image_filenames_to_load = st.session_state.get("gdrive_image_files", [])
@@ -119,17 +107,17 @@ def render_tab1():
                     st.write("--- DEBUG: Loading End ---") # Debug End
 
 
-        # --- Save Section (Using st.form, removed key from file_uploader) ---
+# --- Save Section (Using st.form, removed key from file_uploader) ---
         with col_save:
             st.markdown("**현재 견적 저장**")
             with st.form(key="save_quote_form"):
+                # ... (파일 이름 예시 등 기존 코드) ...
                 try: kst_ex = pytz.timezone("Asia/Seoul"); now_ex_str = datetime.now(kst_ex).strftime('%y%m%d')
                 except: now_ex_str = datetime.now().strftime('%y%m%d')
                 phone_ex = utils.extract_phone_number_part(st.session_state.get('customer_phone', ''), length=4, default="XXXX")
                 quote_base_name = f"{now_ex_str}-{phone_ex}"; example_json_fname = f"{quote_base_name}.json"
                 st.caption(f"JSON 파일명 형식: `{example_json_fname}`"); st.caption(f"사진 파일명 형식: `{quote_base_name}_사진1.png` 등")
 
-                # File uploader (key parameter REMOVED)
                 uploaded_image_files_in_form = st.file_uploader( "사진 첨부 (최대 5장):", accept_multiple_files=True, type=['png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp'] )
 
                 if uploaded_image_files_in_form and len(uploaded_image_files_in_form) > 5: st.warning("⚠️ 사진은 최대 5장까지만 첨부 및 저장됩니다. 5장을 초과한 파일은 저장되지 않습니다.", icon="⚠️")
@@ -137,56 +125,80 @@ def render_tab1():
                 submitted = st.form_submit_button("💾 Google Drive에 저장")
 
                 if submitted:
-                    current_uploaded_files = uploaded_image_files_in_form or [] # Read from local var
+                    current_uploaded_files = uploaded_image_files_in_form or []
                     if len(current_uploaded_files) > 5: st.warning("5장을 초과한 이미지는 제외하고 저장합니다.", icon="⚠️")
                     files_to_upload = current_uploaded_files[:5]
                     customer_phone = st.session_state.get('customer_phone', ''); phone_part = utils.extract_phone_number_part(customer_phone, length=4)
-                    if phone_part == "번호없음" or not customer_phone.strip(): st.error("⚠️ 저장 실패: 고객 전화번호(뒤 4자리 포함)를 먼저 입력해주세요.")
+
+                    if phone_part == "번호없음" or not customer_phone.strip():
+                         st.error("⚠️ 저장 실패: 고객 전화번호(뒤 4자리 포함)를 먼저 입력해주세요.")
                     else:
                         try: kst_save = pytz.timezone("Asia/Seoul"); now_save = datetime.now(kst_save)
                         except: now_save = datetime.now()
                         date_str = now_save.strftime('%y%m%d'); base_save_name = f"{date_str}-{phone_part}"; json_filename = f"{base_save_name}.json"
-                        saved_image_names = []; num_images_to_upload = len(files_to_upload); img_upload_bar = None
+
+                        # --- 이미지 업로드 및 파일명 저장 수정 ---
+                        saved_image_names = [] # 실제 저장된 파일명을 담을 리스트
+                        num_images_to_upload = len(files_to_upload); img_upload_bar = None
                         if num_images_to_upload > 0: img_upload_bar = st.progress(0, text=f"🖼️ 이미지 업로드 중... (0/{num_images_to_upload})")
                         upload_errors = False
+
                         for i, uploaded_file in enumerate(files_to_upload):
-                            original_filename = uploaded_file.name; _, extension = os.path.splitext(original_filename)
-                            drive_image_filename = f"{base_save_name}_사진{i+1}{extension}"
-                            with st.spinner(f"이미지 '{drive_image_filename}' 업로드 중..."): image_bytes = uploaded_file.getvalue(); save_img_result = gdrive.save_image_file(drive_image_filename, image_bytes)
+                            original_filename = uploaded_file.name
+                            _, extension = os.path.splitext(original_filename)
+                            # 1. 원하는 파일명 생성 (기존 방식)
+                            desired_drive_image_filename = f"{base_save_name}_사진{i+1}{extension}"
+
+                            with st.spinner(f"이미지 '{desired_drive_image_filename}' 업로드 시도 중..."):
+                                image_bytes = uploaded_file.getvalue()
+                                # 2. 수정된 save_image_file 호출 (고유 이름 처리 내장됨)
+                                save_img_result = gdrive.save_image_file(desired_drive_image_filename, image_bytes)
+
+                            # 3. 결과 확인 및 실제 저장된 이름 사용
                             if save_img_result and save_img_result.get('id'):
-                                 saved_image_names.append(drive_image_filename)
-                                 if img_upload_bar: progress_val = (i + 1) / num_images_to_upload; img_upload_bar.progress(progress_val, text=f"🖼️ 이미지 업로드 중... ({i+1}/{num_images_to_upload})")
-                            else: st.error(f"❌ 이미지 '{original_filename}' 업로드 실패."); upload_errors = True
-                            time.sleep(0.1)
+                                 # --- !!! 중요: 반환된 실제 파일 이름 사용 !!! ---
+                                 actual_saved_name = save_img_result.get('name', desired_drive_image_filename) # Drive가 반환한 이름 사용
+                                 saved_image_names.append(actual_saved_name) # 실제 저장된 이름 추가
+                                 print(f"DEBUG [Save]: Image {i+1} saved. Desired: '{desired_drive_image_filename}', Actual: '{actual_saved_name}'")
+                                 if img_upload_bar:
+                                     progress_val = (i + 1) / num_images_to_upload
+                                     img_upload_bar.progress(progress_val, text=f"🖼️ 이미지 업로드 중... ({i+1}/{num_images_to_upload})")
+                            else:
+                                 st.error(f"❌ 이미지 '{original_filename}' 업로드 실패.")
+                                 upload_errors = True
+                            # time.sleep(0.1) # Drive API 호출 빈도 조절 필요시 사용
+
                         if img_upload_bar: img_upload_bar.empty()
                         if not upload_errors and num_images_to_upload > 0: st.success(f"✅ 이미지 {num_images_to_upload}개 업로드 완료.")
                         elif upload_errors: st.warning("⚠️ 일부 이미지 업로드에 실패했습니다.")
-                        # 저장된 이미지 파일 이름을 gdrive_image_files 상태에 저장
+                        # --- 수정 완료 ---
+
+                        # JSON 저장을 위해 상태 업데이트 (실제 저장된 이름 사용)
                         st.session_state.gdrive_image_files = saved_image_names
-                        state_data_to_save = prepare_state_for_save() # 상태 준비 시 gdrive_image_files 포함됨
+                        state_data_to_save = prepare_state_for_save() # gdrive_image_files 포함
+
+                        # JSON 파일 저장
                         try:
-                            with st.spinner(f"🔄 '{json_filename}' 견적 데이터 저장 중..."): save_json_result = gdrive.save_json_file(json_filename, state_data_to_save)
-                            if save_json_result and save_json_result.get('id'): st.success(f"✅ '{json_filename}' 저장/업데이트 완료.")
-                            else: st.error(f"❌ '{json_filename}' 저장 중 오류 발생.")
+                            with st.spinner(f"🔄 '{json_filename}' 견적 데이터 저장 중..."):
+                                save_json_result = gdrive.save_json_file(json_filename, state_data_to_save)
+                            if save_json_result and save_json_result.get('id'):
+                                st.success(f"✅ '{json_filename}' 저장/업데이트 완료.")
+                            else:
+                                st.error(f"❌ '{json_filename}' 저장 중 오류 발생.")
                         except TypeError as json_err: st.error(f"❌ 저장 실패: 데이터를 JSON으로 변환 중 오류 발생 - {json_err}")
                         except Exception as save_err: st.error(f"❌ '{json_filename}' 파일 저장 중 예외 발생: {save_err}")
             # --- End Form ---
-
     st.divider()
 
     # --- Customer Info Section ---
     st.header("📝 고객 기본 정보")
     # Ensure MOVE_TYPE_OPTIONS is available
     move_type_options_tab1 = globals().get('MOVE_TYPE_OPTIONS')
-    # *** Ensure sync_move_type exists in callbacks ***
-    sync_move_type_callback_ref = getattr(callbacks, 'sync_move_type', None)
-
     if move_type_options_tab1:
         try: current_index_tab1 = move_type_options_tab1.index(st.session_state.base_move_type)
         except ValueError: current_index_tab1 = 0
-        st.radio( "🏢 **기본 이사 유형**", options=move_type_options_tab1, index=current_index_tab1, horizontal=True, key="base_move_type_widget_tab1", on_change=sync_move_type_callback_ref, args=("base_move_type_widget_tab1",) )
+        st.radio( "🏢 **기본 이사 유형**", options=move_type_options_tab1, index=current_index_tab1, horizontal=True, key="base_move_type_widget_tab1", on_change=sync_move_type, args=("base_move_type_widget_tab1",) )
     else: st.warning("이사 유형 옵션을 로드할 수 없습니다.")
-
     col_opts1, col_opts2 = st.columns(2);
     with col_opts1: st.checkbox("📦 보관이사 여부", key="is_storage_move")
     with col_opts2: st.checkbox("🛣️ 장거리 이사 적용", key="apply_long_distance")
@@ -196,11 +208,7 @@ def render_tab1():
         if st.session_state.get('apply_long_distance'): st.selectbox("🛣️ 장거리 구간 선택", data.long_distance_options if hasattr(data,'long_distance_options') else [], key="long_distance_selector")
         st.text_input("🔼 출발지 층수", key="from_floor", placeholder="예: 3, B1, -1"); st.selectbox("🛠️ 출발지 작업 방법", data.METHOD_OPTIONS if hasattr(data,'METHOD_OPTIONS') else [], key="from_method", help="사다리차, 승강기, 계단, 스카이 중 선택")
     with col2:
-        st.text_input("📞 전화번호", key="customer_phone", placeholder="01012345678")
-        # --- !!! 이메일 입력 필드 추가 !!! ---
-        st.text_input("📧 이메일", key="customer_email", placeholder="email@example.com")
-        # --- !!! 추가 완료 --- !!!
-        st.text_input("📍 도착지 주소", key="to_location", placeholder="이사 도착지 상세 주소")
+        st.text_input("📞 전화번호", key="customer_phone", placeholder="01012345678"); st.text_input("📍 도착지 주소", key="to_location", placeholder="이사 도착지 상세 주소")
         st.text_input("🔽 도착지 층수", key="to_floor", placeholder="예: 5, B2, -2"); st.selectbox("🛠️ 도착지 작업 방법", data.METHOD_OPTIONS if hasattr(data,'METHOD_OPTIONS') else [], key="to_method", help="사다리차, 승강기, 계단, 스카이 중 선택")
         current_moving_date_val = st.session_state.get('moving_date')
         if not isinstance(current_moving_date_val, date):
