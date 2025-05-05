@@ -1,4 +1,4 @@
-# ui_tab3.py (Corrected All single-line 'with' and 'for/with' syntax errors)
+# ui_tab3.py (Summary format updated - Final Request Applied)
 import streamlit as st
 import pandas as pd
 import io
@@ -114,8 +114,7 @@ def render_tab3():
 
     # --- Work Conditions & Options (Corrected structure) ---
     with st.container(border=True):
-        st.subheader("🛠️ 작업 조건 및 추가 옵션")
-        sky_from = st.session_state.get('from_method') == "스카이 🏗️"; sky_to = st.session_state.get('to_method') == "스카이 🏗️"
+        st.subheader("🛠️ 작업 조건 및 추가 옵션"); sky_from = st.session_state.get('from_method') == "스카이 🏗️"; sky_to = st.session_state.get('to_method') == "스카이 🏗️"
         if sky_from or sky_to:
             st.warning("스카이 작업 선택됨 - 시간 입력 필요", icon="🏗️"); cols_sky = st.columns(2)
             with cols_sky[0]:
@@ -142,10 +141,8 @@ def render_tab3():
         col_waste1, col_waste2 = st.columns([1, 2])
         with col_waste1: st.checkbox("폐기물 처리 필요 🗑️", key="has_waste_check", help="톤 단위 직접 입력 방식입니다.")
         with col_waste2:
-            if st.session_state.get('has_waste_check'): st.number_input("폐기물 양 (톤)", min_value=0.5, max_value=10.0, step=0.5, key="waste_tons_input", format="%.1f"); st.caption(f"💡 1톤당 {data.WASTE_DISPOSAL_COST_PER_TON:,}원 추가 비용 발생")
-
         # --- vvv CORRECTED BLOCK (Line 124 area) vvv ---
-        st.write("📅 **날짜 유형 선택** (중복 가능, 해당 시 할증)")
+         st.write("📅 **날짜 유형 선택** (중복 가능, 해당 시 할증)")
         date_options = ["이사많은날 🏠", "손없는날 ✋", "월말 📅", "공휴일 🎉", "금요일 📅"]
         date_keys = [f"date_opt_{i}_widget" for i in range(len(date_options))]
         cols_date = st.columns(len(date_options))
@@ -155,18 +152,12 @@ def render_tab3():
                 st.checkbox(option, key=date_keys[i])
         # --- ^^^ CORRECTED BLOCK ^^^ ---
 
-    st.divider() # This divider should be outside the 'with st.container...' block
-
-    # --- Cost Adjustment & Deposit (Corrected structure) ---
+    # --- Cost Adjustment & Deposit ---
     with st.container(border=True):
-        st.subheader("💰 비용 조정 및 계약금")
-        col_adj1, col_adj2, col_adj3 = st.columns(3)
-        with col_adj1:
-            st.number_input( "📝 계약금", min_value=0, step=10000, key="deposit_amount", format="%d", help="고객에게 받을 계약금 입력" )
-        with col_adj2:
-            st.number_input( "💰 추가 조정 (+/-)", step=10000, key="adjustment_amount", help="견적 금액 외 추가 할증(+) 또는 할인(-) 금액 입력", format="%d" )
-        with col_adj3:
-            st.number_input( "🪜 사다리 추가요금", min_value=0, step=10000, key="regional_ladder_surcharge", format="%d", help="추가되는 사다리차 비용" )
+        st.subheader("💰 비용 조정 및 계약금"); col_adj1, col_adj2, col_adj3 = st.columns(3)
+        with col_adj1: st.number_input( "📝 계약금", min_value=0, step=10000, key="deposit_amount", format="%d", help="고객에게 받을 계약금 입력" )
+        with col_adj2: st.number_input( "💰 추가 조정 (+/-)", step=10000, key="adjustment_amount", help="견적 금액 외 추가 할증(+) 또는 할인(-) 금액 입력", format="%d" )
+        with col_adj3: st.number_input( "🪜 사다리 추가요금", min_value=0, step=10000, key="regional_ladder_surcharge", format="%d", help="추가되는 사다리차 비용" )
     st.divider()
 
     # --- Final Quote Results ---
@@ -189,7 +180,7 @@ def render_tab3():
         special_notes_display = st.session_state.get('special_notes')
         if special_notes_display and special_notes_display.strip(): st.subheader("📝 고객요구사항"); st.info(special_notes_display)
 
-        # --- Move Info Summary (Applying requested format) ---
+        # --- Move Info Summary (UPDATED FORMAT - Final Request Applied) ---
         st.subheader("📋 이사 정보 요약")
         summary_generated = False
         try:
@@ -202,24 +193,36 @@ def render_tab3():
                 if "견적 정보" in xls.sheet_names and "비용 내역 및 요약" in xls.sheet_names:
                     df_info = xls.parse("견적 정보", header=None); df_cost = xls.parse("비용 내역 및 요약", header=None)
                     info_dict = dict(zip(df_info[0].astype(str), df_info[1].astype(str))) if not df_info.empty and len(df_info.columns) > 1 else {}
-                    # Helpers for formatting (including 만원 unit removal)
+
+                    # --- vvv UPDATED HELPER FUNCTIONS for COST FORMATTING (만원 단위 숫자만) vvv ---
                     def format_money_manwon_unit(amount):
+                        """Formats amount in 10,000s (manwon) without the unit."""
                         try:
-                            amount_str = str(amount).replace(",", "").split()[0]; amount_float = float(amount_str); amount_int = int(amount_float)
-                            if amount_int == 0: return "0"
-                            manwon_value = amount_int // 10000; return f"{manwon_value}"
-                        except (ValueError, TypeError, IndexError): return "금액오류"
+                            amount_str = str(amount).replace(",", "").split()[0]
+                            amount_float = float(amount_str)
+                            amount_int = int(amount_float)
+                            if amount_int == 0:
+                                return "0"
+                            # Divide by 10000 and format as integer string
+                            manwon_value = amount_int // 10000
+                            return f"{manwon_value}" # Return number string in 만원 scale
+                        except (ValueError, TypeError, IndexError):
+                            return "금액오류"
+
                     def get_cost_abbr_manwon_unit(kw, abbr, df):
+                        """Gets cost abbreviation using the new manwon formatting."""
                         if df.empty or len(df.columns) < 2: return f"{abbr} 정보 없음"
                         for i in range(len(df)):
                             if pd.notna(df.iloc[i, 0]) and str(df.iloc[i, 0]).strip().startswith(kw):
-                                formatted_amount = format_money_manwon_unit(df.iloc[i, 1]); return f"{abbr} {formatted_amount}"
+                                formatted_amount = format_money_manwon_unit(df.iloc[i, 1])
+                                return f"{abbr} {formatted_amount}" # 예: "계 2" 또는 "잔 243"
                         return f"{abbr} 정보 없음"
+                    # --- ^^^ UPDATED HELPER FUNCTIONS ^^^ ---
+
                     def format_address(addr): return str(addr).strip() if isinstance(addr, str) and addr.strip() and addr.lower() != 'nan' else ""
                     def format_method(m):
                         m = str(m).strip(); return "사" if "사다리차" in m else "승" if "승강기" in m else "계" if "계단" in m else "스카이" if "스카이" in m else "?"
 
-                    # Extract data
                     from_addr = format_address(info_dict.get("출발지", st.session_state.get('from_location',''))); to_addr = format_address(info_dict.get("도착지", st.session_state.get('to_location','')))
                     phone = info_dict.get("고객 연락처", st.session_state.get('customer_phone','')); vehicle_type = final_selected_vehicle_calc
                     note = format_address(info_dict.get("고객요구사항", st.session_state.get('special_notes','')))
@@ -236,28 +239,42 @@ def render_tab3():
                     rem_fee_str = get_cost_abbr_manwon_unit("잔금 (VAT 별도)", "잔", df_cost) # Use 만원 format
                     w_from = format_method(info_dict.get("출발 작업", st.session_state.get('from_method',''))); w_to = format_method(info_dict.get("도착 작업", st.session_state.get('to_method',''))); work = f"출{w_from}도{w_to}"
 
-                    # Display Summary (Applying FINAL format)
+                    # --- vvv Construct and display summary (Applying FINAL format) vvv ---
+                    # Line 1: Full Addresses - Tonnage
                     addr_separator = " - " if from_addr and to_addr else " "
-                    first_line = f"{from_addr}{addr_separator}{to_addr} {vehicle_type}" # Line 1
+                    first_line = f"{from_addr}{addr_separator}{to_addr} {vehicle_type}"
                     st.text(first_line.strip())
                     st.text("")
-                    if phone and phone != '-': # Line 2
+
+                    # Line 2: Phone
+                    if phone and phone != '-':
                         st.text(phone)
                         st.text("")
-                    personnel_line = f"{vehicle_type} {ppl}" # Line 3
+
+                    # Line 3: Vehicle Tonnage + Personnel Count
+                    personnel_line = f"{vehicle_type} {ppl}"
                     st.text(personnel_line)
                     st.text("")
-                    if bask: # Line 4
+
+                    # Line 4: Baskets
+                    if bask:
                         st.text(bask)
                         st.text("")
-                    st.text(work) # Line 5
+
+                    # Line 5: Work method
+                    st.text(work)
                     st.text("")
-                    st.text(f"{cont_fee_str} / {rem_fee_str}") # Line 6 (만원 unit removed)
+
+                    # Line 6: Costs (Using new strings - manwon scale, no unit)
+                    st.text(f"{cont_fee_str} / {rem_fee_str}")
                     st.text("")
-                    if note: # Line 7+
+
+                    # Line 7 onwards: Special Notes
+                    if note:
                         notes_list = [n.strip() for n in note.split('.') if n.strip()]
                         for note_line in notes_list:
                             st.text(note_line)
+                    # --- ^^^ End construct and display ^^^ ---
 
                     summary_generated = True
                 else: st.warning("⚠️ 요약 정보 생성 실패 (필수 Excel 시트 누락)")
@@ -267,6 +284,7 @@ def render_tab3():
         st.divider()
 
         # --- Download Section ---
+        # (Download section remains unchanged)
         st.subheader("📄 견적서 파일 다운로드"); has_cost_error = any(isinstance(item, (list, tuple)) and len(item)>0 and str(item[0]) == "오류" for item in cost_items) if cost_items else False
         can_gen_pdf = bool(final_selected_vehicle_calc) and not has_cost_error; can_gen_final_excel = bool(final_selected_vehicle_calc)
         cols_dl = st.columns(3)
