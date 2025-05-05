@@ -227,12 +227,16 @@ def render_tab1():
     # --- Display Loaded Images ---
     # (Remains the same)
     if st.session_state.get("loaded_images"):
-        st.subheader("🖼️ 불러온 사진"); loaded_images_dict = st.session_state.loaded_images
-        num_cols = min(len(loaded_images_dict), 4)
+        st.subheader("🖼️ 불러온 사진")
+        loaded_images_dict = st.session_state.loaded_images
+        num_cols = min(len(loaded_images_dict), 4) # Adjust columns as needed
         if num_cols > 0:
-            cols = st.columns(num_cols); i = 0
+            cols = st.columns(num_cols)
+            i = 0
             for filename, img_bytes in loaded_images_dict.items():
-                with cols[i % num_cols]: st.image(img_bytes, caption=filename, use_container_width=True)
+                with cols[i % num_cols]:
+                    # 아래 라인이 210번째 줄 근처일 가능성이 높습니다.
+                    st.image(img_bytes, caption=filename, use_container_width=True) # Use use_container_width
                 i += 1
         st.divider()
 
