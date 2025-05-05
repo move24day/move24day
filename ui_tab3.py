@@ -1,4 +1,4 @@
-# ui_tab3.py (Summary format updated)
+# ui_tab3.py (Summary format updated, syntax checked)
 import streamlit as st
 import pandas as pd
 import io
@@ -13,7 +13,8 @@ try:
     import calculations
     import pdf_generator # Needed for generate_excel (used in summary) and generate_pdf
     import excel_filler # Needed for the final excel generation
-    from state_manager import MOVE_TYPE_OPTIONS # Import MOVE_TYPE_OPTIONS
+    # Import MOVE_TYPE_OPTIONS from state_manager
+    from state_manager import MOVE_TYPE_OPTIONS
     # Import callbacks needed in this tab
     from callbacks import sync_move_type, update_basket_quantities
 except ImportError as e:
@@ -33,31 +34,30 @@ def render_tab3():
     # --- Move Type Selection (Tab 3) ---
     st.subheader("🏢 이사 유형 확인/변경")
     current_move_type = st.session_state.get('base_move_type')
-    try:
-        # Ensure MOVE_TYPE_OPTIONS is available and is a list/tuple
-        if not MOVE_TYPE_OPTIONS or not isinstance(MOVE_TYPE_OPTIONS, (list, tuple)):
-             raise ValueError("MOVE_TYPE_OPTIONS not defined or invalid")
-        current_index_tab3 = MOVE_TYPE_OPTIONS.index(current_move_type)
-    except (ValueError, AttributeError, NameError): # Catch NameError too
-        current_index_tab3 = 0 # Default to first option
-        # Attempt to reset state only if MOVE_TYPE_OPTIONS is valid
-        if MOVE_TYPE_OPTIONS and isinstance(MOVE_TYPE_OPTIONS, (list, tuple)) and len(MOVE_TYPE_OPTIONS) > 0:
-            st.session_state.base_move_type = MOVE_TYPE_OPTIONS[0] # Reset state if invalid
-            print("Warning: Resetting base_move_type in Tab 3 due to invalid state or options.")
-        else:
-            st.error("이사 유형 옵션을 불러올 수 없습니다. data.py 파일을 확인하세요.")
-            # Optionally stop execution if move types are critical
-            # st.stop()
-
-    # Render radio only if options are available
+    current_index_tab3 = 0 # Default index
     if MOVE_TYPE_OPTIONS and isinstance(MOVE_TYPE_OPTIONS, (list, tuple)):
+        try:
+            current_index_tab3 = MOVE_TYPE_OPTIONS.index(current_move_type)
+        except ValueError:
+            # Handle case where current_move_type is not in options
+            current_index_tab3 = 0
+            if MOVE_TYPE_OPTIONS: # Ensure options exist before assigning default
+                 st.session_state.base_move_type = MOVE_TYPE_OPTIONS[0]
+                 print("Warning: Resetting base_move_type in Tab 3 due to invalid state.")
+            else:
+                 st.error("이사 유형 옵션을 data.py에서 찾을 수 없습니다.")
+
+        # Render radio only if options are available
         st.radio(
             "기본 이사 유형:",
             options=MOVE_TYPE_OPTIONS, index=current_index_tab3, horizontal=True,
-            key="base_move_type_widget_tab3", # Use the specific widget key
-            on_change=sync_move_type, # Use the callback
-            args=("base_move_type_widget_tab3",) # Pass the key
+            key="base_move_type_widget_tab3",
+            on_change=sync_move_type,
+            args=("base_move_type_widget_tab3",)
         )
+    else:
+         st.error("이사 유형 옵션을 정의할 수 없습니다. data.py 파일을 확인하세요.")
+
     st.divider()
 
     # --- Vehicle Selection ---
@@ -169,6 +169,7 @@ def render_tab3():
                 if "견적 정보" in xls.sheet_names and "비용 내역 및 요약" in xls.sheet_names:
                     df_info = xls.parse("견적 정보", header=None); df_cost = xls.parse("비용 내역 및 요약", header=None)
                     info_dict = dict(zip(df_info[0].astype(str), df_info[1].astype(str))) if not df_info.empty and len(df_info.columns) > 1 else {}
+                    # --- Helper functions ---
                     def format_money_kor(amount):
                         try: amount_str = str(amount).replace(",", "").split()[0]; amount_float = float(amount_str); amount_int = int(amount_float)
                         except: return "금액오류"
@@ -183,39 +184,58 @@ def render_tab3():
                         return f"{abbr} 정보 없음"
                     def format_method(m):
                         m = str(m).strip(); return "사" if "사다리차" in m else "승" if "승강기" in m else "계" if "계단" in m else "스카이" if "스카이" in m else "?"
+                    # --- End Helper functions ---
 
+                    # --- Extract data ---
                     from_addr = format_address(info_dict.get("출발지", st.session_state.get('from_location',''))); to_addr = format_address(info_dict.get("도착지", st.session_state.get('to_location','')))
                     phone = info_dict.get("고객 연락처", st.session_state.get('customer_phone','')); vehicle_type = final_selected_vehicle_calc
                     note = format_address(info_dict.get("고객요구사항", st.session_state.get('special_notes','')))
                     p_info = personnel_info if isinstance(personnel_info, dict) else {}; men = p_info.get('final_men', 0); women = p_info.get('final_women', 0); ppl = f"{men}+{women}" if women > 0 else f"{men}"
                     b_name = "포장 자재 📦"; move_t = st.session_state.base_move_type
-                    # --- vvv Block around Line 103 vvv ---
-                    q_b = int(st.session_state.get(f"qty_{move_t}_{b_name}_바구니", 0)) # Check this line's indentation
-                    q_m = int(st.session_state.get(f"qty_{move_t}_{b_name}_중박스", 0)) # Check this line's indentation
-                    q_c = int(st.session_state.get(f"qty_{move_t}_{b_name}_옷바구니", 0)) # Check this line's indentation
-                    q_k = int(st.session_state.get(f"qty_{move_t}_{b_name}_책바구니", 0)) # Check this line's indentation
-                    bask_parts = [] # Line 103: Check this line's indentation
-                    if q_b > 0: bask_parts.append(f"바{q_b}") # Check indentation
-                    if q_m > 0: bask_parts.append(f"중{q_m}") # Check indentation
-                    if q_c > 0: bask_parts.append(f"옷{q_c}") # Check indentation
-                    if q_k > 0: bask_parts.append(f"책{q_k}") # Check indentation
-                    bask = " ".join(bask_parts) # Check indentation
+                    # --- vvv Block around Line 103 vvv --- CHECK INDENTATION HERE
+                    q_b = int(st.session_state.get(f"qty_{move_t}_{b_name}_바구니", 0))
+                    q_m = int(st.session_state.get(f"qty_{move_t}_{b_name}_중박스", 0))
+                    q_c = int(st.session_state.get(f"qty_{move_t}_{b_name}_옷바구니", 0))
+                    q_k = int(st.session_state.get(f"qty_{move_t}_{b_name}_책바구니", 0))
+                    bask_parts = [] # Line ~103
+                    if q_b > 0: bask_parts.append(f"바{q_b}")
+                    if q_m > 0: bask_parts.append(f"중{q_m}")
+                    if q_c > 0: bask_parts.append(f"옷{q_c}")
+                    if q_k > 0: bask_parts.append(f"책{q_k}")
+                    bask = " ".join(bask_parts)
                     # --- ^^^ Block around Line 103 ^^^ ---
                     cont_fee = get_cost_abbr("계약금 (-)", "계", df_cost); rem_fee = get_cost_abbr("잔금 (VAT 별도)", "잔", df_cost)
                     w_from = format_method(info_dict.get("출발 작업", st.session_state.get('from_method',''))); w_to = format_method(info_dict.get("도착 작업", st.session_state.get('to_method',''))); work = f"출{w_from}도{w_to}"
+                    # --- End Extract data ---
 
-                    st.text(f"{vehicle_type}"); st.text("") # Line 1
-                    if phone and phone != '-': st.text(phone); st.text("") # Line 2
-                    if from_addr: st.text(from_addr) # Line 3
-                    if to_addr: st.text(to_addr) # Line 4
-                    if from_addr or to_addr: st.text("") # Blank line
-                    st.text(f"{ppl}"); st.text("") # Line 5
+                    # --- Construct and display summary (Corrected Format) ---
+                    # --- vvv Block around Line 122 vvv --- CHECK INDENTATION HERE
+                    st.text(f"{vehicle_type}") # Line 1: Vehicle only
+                    st.text("")
+
+                    if phone and phone != '-': # Line ~120 - Check Colon and Indentation
+                        st.text(phone) # Line ~121 - Check Indentation
+                        st.text("") # Line ~122 - Check Indentation
+
+                    if from_addr: # Line ~124 - Check Colon and Indentation
+                        st.text(from_addr) # Line ~125 - Check Indentation
+                    if to_addr: # Line ~126 - Check Colon and Indentation
+                        st.text(to_addr) # Line ~127 - Check Indentation
+                    if from_addr or to_addr: # Line ~128 - Check Colon and Indentation
+                        st.text("") # Line ~129 - Check Indentation
+
+                    st.text(f"{ppl}") # Line ~131
+                    st.text("") # Line ~132
+                    # --- ^^^ Block around Line 122 ^^^ ---
+
                     if bask: st.text(bask); st.text("") # Line 6
                     st.text(work); st.text("") # Line 7
                     st.text(f"{cont_fee} / {rem_fee}"); st.text("") # Line 8
                     if note: # Line 9+
                         notes_list = [n.strip() for n in note.split('.') if n.strip()]
                         for note_line in notes_list: st.text(note_line)
+                    # --- End construct and display ---
+
                     summary_generated = True
                 else: st.warning("⚠️ 요약 정보 생성 실패 (필수 Excel 시트 누락)")
             else: st.warning("⚠️ 요약 정보 생성 실패 (Excel 데이터 생성 오류)")
@@ -224,7 +244,6 @@ def render_tab3():
         st.divider()
 
         # --- Download Section ---
-        # (Remains the same)
         st.subheader("📄 견적서 파일 다운로드"); has_cost_error = any(isinstance(item, (list, tuple)) and len(item)>0 and str(item[0]) == "오류" for item in cost_items) if cost_items else False
         can_gen_pdf = bool(final_selected_vehicle_calc) and not has_cost_error; can_gen_final_excel = bool(final_selected_vehicle_calc)
         cols_dl = st.columns(3)
