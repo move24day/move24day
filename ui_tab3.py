@@ -1,4 +1,4 @@
-# ui_tab3.py (Summary format updated, syntax checked)
+# ui_tab3.py (Corrected single-line 'with' syntax errors)
 import streamlit as st
 import pandas as pd
 import io
@@ -35,20 +35,17 @@ def render_tab3():
     st.subheader("🏢 이사 유형 확인/변경")
     current_move_type = st.session_state.get('base_move_type')
     current_index_tab3 = 0 # Default index
-    # Ensure MOVE_TYPE_OPTIONS is loaded and valid before using it
     if 'MOVE_TYPE_OPTIONS' in globals() and MOVE_TYPE_OPTIONS and isinstance(MOVE_TYPE_OPTIONS, (list, tuple)):
         try:
             current_index_tab3 = MOVE_TYPE_OPTIONS.index(current_move_type)
         except ValueError:
-            # Handle case where current_move_type is not in options
             current_index_tab3 = 0
-            if MOVE_TYPE_OPTIONS: # Ensure options exist before assigning default
+            if MOVE_TYPE_OPTIONS:
                  st.session_state.base_move_type = MOVE_TYPE_OPTIONS[0]
                  print("Warning: Resetting base_move_type in Tab 3 due to invalid state.")
             else:
                  st.error("이사 유형 옵션을 data.py에서 찾을 수 없습니다.")
 
-        # Render radio only if options are available
         st.radio(
             "기본 이사 유형:",
             options=MOVE_TYPE_OPTIONS, index=current_index_tab3, horizontal=True,
@@ -66,15 +63,15 @@ def render_tab3():
         st.subheader("🚚 차량 선택")
         col_v1_widget, col_v2_widget = st.columns([1, 2])
         with col_v1_widget:
-            # Corrected typo: 차반 -> 차량
             st.radio(
-                "차량 선택 방식:", # Correct label
-                ["자동 추천 차량 사용", "수동으로 차량 선택"], # Correct options
+                "차량 선택 방식:",
+                ["자동 추천 차량 사용", "수동으로 차량 선택"],
                 key="vehicle_select_radio",
                 help="자동 추천을 사용하거나, 목록에서 직접 차량을 선택합니다.",
                 on_change=update_basket_quantities
             )
         with col_v2_widget:
+            # (Vehicle selection display logic - unchanged)
             current_move_type_widget = st.session_state.base_move_type
             vehicle_prices_options_widget = data.vehicle_prices.get(current_move_type_widget, {})
             available_trucks_widget = sorted(vehicle_prices_options_widget.keys(), key=lambda x: data.vehicle_specs.get(x, {}).get("capacity", 0))
@@ -84,11 +81,10 @@ def render_tab3():
             valid_auto_widget = (recommended_vehicle_auto_widget and "초과" not in recommended_vehicle_auto_widget and recommended_vehicle_auto_widget in available_trucks_widget)
             if use_auto_widget:
                 if valid_auto_widget:
-                    st.success(f"✅ 자동 선택됨: **{final_vehicle_widget}**")
-                    spec = data.vehicle_specs.get(final_vehicle_widget)
+                    st.success(f"✅ 자동 선택됨: **{final_vehicle_widget}**"); spec = data.vehicle_specs.get(final_vehicle_widget)
                     if spec: st.caption(f"선택차량 최대 용량: {spec.get('capacity', 'N/A')}m³, {spec.get('weight_capacity', 'N/A'):,}kg"); st.caption(f"현재 이사짐 예상: {st.session_state.get('total_volume',0.0):.2f}m³, {st.session_state.get('total_weight',0.0):.2f}kg")
                 else:
-                    error_msg = "⚠️ 자동 추천 불가: "
+                    error_msg = "⚠️ 자동 추천 불가: ";
                     if recommended_vehicle_auto_widget and "초과" in recommended_vehicle_auto_widget: error_msg += f"물량 초과({recommended_vehicle_auto_widget}). 수동 선택 필요."
                     elif not recommended_vehicle_auto_widget and (st.session_state.get('total_volume', 0.0) > 0 or st.session_state.get('total_weight', 0.0) > 0): error_msg += "계산/정보 부족. 수동 선택 필요."
                     else: error_msg += "물품 미선택 또는 정보 부족. 수동 선택 필요."; st.error(error_msg)
@@ -117,29 +113,71 @@ def render_tab3():
                        if spec_manual: st.caption(f"선택차량 최대 용량: {spec_manual.get('capacity', 'N/A')}m³, {spec_manual.get('weight_capacity', 'N/A'):,}kg"); st.caption(f"현재 이사짐 예상: {st.session_state.get('total_volume',0.0):.2f}m³, {st.session_state.get('total_weight',0.0):.2f}kg")
     st.divider()
 
-    # --- Work Conditions & Options ---
+    # --- Work Conditions & Options (Corrected single-line 'with' usages) ---
     with st.container(border=True):
-        st.subheader("🛠️ 작업 조건 및 추가 옵션"); sky_from = st.session_state.get('from_method') == "스카이 🏗️"; sky_to = st.session_state.get('to_method') == "스카이 🏗️"
+        st.subheader("🛠️ 작업 조건 및 추가 옵션")
+        sky_from = st.session_state.get('from_method') == "스카이 🏗️"
+        sky_to = st.session_state.get('to_method') == "스카이 🏗️"
         if sky_from or sky_to:
-            st.warning("스카이 작업 선택됨 - 시간 입력 필요", icon="🏗️"); cols_sky = st.columns(2)
+            st.warning("스카이 작업 선택됨 - 시간 입력 필요", icon="🏗️")
+            cols_sky = st.columns(2)
             with cols_sky[0]:
                 if sky_from: st.number_input("출발 스카이 시간(h)", min_value=1, step=1, key="sky_hours_from")
             with cols_sky[1]:
                 if sky_to: st.number_input("도착 스카이 시간(h)", min_value=1, step=1, key="sky_hours_final")
-            st.write("")
-        col_add1, col_add2 = st.columns(2); with col_add1: st.number_input("추가 남성 인원 👨", min_value=0, step=1, key="add_men", help="기본 인원 외 추가로 필요한 남성 작업자 수"); with col_add2: st.number_input("추가 여성 인원 👩", min_value=0, step=1, key="add_women", help="기본 인원 외 추가로 필요한 여성 작업자 수"); st.write("")
-        st.subheader("🚚 실제 투입 차량"); dispatched_cols = st.columns(4); with dispatched_cols[0]: st.number_input("1톤", min_value=0, step=1, key="dispatched_1t"); with dispatched_cols[1]: st.number_input("2.5톤", min_value=0, step=1, key="dispatched_2_5t"); with dispatched_cols[2]: st.number_input("3.5톤", min_value=0, step=1, key="dispatched_3_5t"); with dispatched_cols[3]: st.number_input("5톤", min_value=0, step=1, key="dispatched_5t"); st.caption("견적 계산과 별개로, 실제 현장에 투입될 차량 대수를 입력합니다."); st.write("")
+            st.write("") # Spacer after sky inputs
+
+        # --- vvv CORRECTED BLOCK (Line 130 area) vvv ---
+        col_add1, col_add2 = st.columns(2)
+        with col_add1:
+            st.number_input("추가 남성 인원 👨", min_value=0, step=1, key="add_men", help="기본 인원 외 추가로 필요한 남성 작업자 수")
+        with col_add2:
+            st.number_input("추가 여성 인원 👩", min_value=0, step=1, key="add_women", help="기본 인원 외 추가로 필요한 여성 작업자 수")
+        st.write("") # Spacer after personnel inputs
+        # --- ^^^ CORRECTED BLOCK ^^^ ---
+
+        # --- vvv CORRECTED BLOCK vvv ---
+        st.subheader("🚚 실제 투입 차량")
+        dispatched_cols = st.columns(4)
+        with dispatched_cols[0]:
+            st.number_input("1톤", min_value=0, step=1, key="dispatched_1t")
+        with dispatched_cols[1]:
+            st.number_input("2.5톤", min_value=0, step=1, key="dispatched_2_5t")
+        with dispatched_cols[2]:
+            st.number_input("3.5톤", min_value=0, step=1, key="dispatched_3_5t")
+        with dispatched_cols[3]:
+            st.number_input("5톤", min_value=0, step=1, key="dispatched_5t")
+        st.caption("견적 계산과 별개로, 실제 현장에 투입될 차량 대수를 입력합니다.")
+        st.write("") # Spacer after dispatched inputs
+        # --- ^^^ CORRECTED BLOCK ^^^ ---
+
+        # (Rest of the options logic - unchanged structure but check for semicolons)
         base_w = 0; remove_opt = False; final_vehicle_for_options = st.session_state.get('final_selected_vehicle'); current_move_type_options = st.session_state.base_move_type; vehicle_prices_options_display = data.vehicle_prices.get(current_move_type_options, {})
-        if final_vehicle_for_options and final_vehicle_for_options in vehicle_prices_options_display: base_info = vehicle_prices_options_display.get(final_vehicle_for_options, {}); base_w = base_info.get('housewife', 0);
+        if final_vehicle_for_options and final_vehicle_for_options in vehicle_prices_options_display:
+            base_info = vehicle_prices_options_display.get(final_vehicle_for_options, {}); base_w = base_info.get('housewife', 0);
         if base_w > 0: remove_opt = True
-        if remove_opt: discount_amount = data.ADDITIONAL_PERSON_COST * base_w; st.checkbox(f"기본 여성({base_w}명) 제외 (비용 할인: -{discount_amount:,}원)", key="remove_base_housewife")
+        if remove_opt:
+            discount_amount = data.ADDITIONAL_PERSON_COST * base_w
+            st.checkbox(f"기본 여성({base_w}명) 제외 (비용 할인: -{discount_amount:,}원)", key="remove_base_housewife")
         else:
              if 'remove_base_housewife' in st.session_state: st.session_state.remove_base_housewife = False
-        col_waste1, col_waste2 = st.columns([1, 2]); with col_waste1: st.checkbox("폐기물 처리 필요 🗑️", key="has_waste_check", help="톤 단위 직접 입력 방식입니다.")
+
+        # --- vvv CORRECTED BLOCK vvv ---
+        col_waste1, col_waste2 = st.columns([1, 2])
+        with col_waste1:
+            st.checkbox("폐기물 처리 필요 🗑️", key="has_waste_check", help="톤 단위 직접 입력 방식입니다.")
         with col_waste2:
-            if st.session_state.get('has_waste_check'): st.number_input("폐기물 양 (톤)", min_value=0.5, max_value=10.0, step=0.5, key="waste_tons_input", format="%.1f"); st.caption(f"💡 1톤당 {data.WASTE_DISPOSAL_COST_PER_TON:,}원 추가 비용 발생")
-        st.write("📅 **날짜 유형 선택** (중복 가능, 해당 시 할증)"); date_options = ["이사많은날 🏠", "손없는날 ✋", "월말 📅", "공휴일 🎉", "금요일 📅"]; date_keys = [f"date_opt_{i}_widget" for i in range(len(date_options))]; cols_date = st.columns(len(date_options));
-        for i, option in enumerate(date_options): with cols_date[i]: st.checkbox(option, key=date_keys[i])
+            if st.session_state.get('has_waste_check'):
+                st.number_input("폐기물 양 (톤)", min_value=0.5, max_value=10.0, step=0.5, key="waste_tons_input", format="%.1f")
+                st.caption(f"💡 1톤당 {data.WASTE_DISPOSAL_COST_PER_TON:,}원 추가 비용 발생")
+        # --- ^^^ CORRECTED BLOCK ^^^ ---
+
+        st.write("📅 **날짜 유형 선택** (중복 가능, 해당 시 할증)")
+        date_options = ["이사많은날 🏠", "손없는날 ✋", "월말 📅", "공휴일 🎉", "금요일 📅"]; date_keys = [f"date_opt_{i}_widget" for i in range(len(date_options))]; cols_date = st.columns(len(date_options));
+        # Use loop with correct 'with' syntax
+        for i, option in enumerate(date_options):
+             with cols_date[i]: # Correct usage
+                 st.checkbox(option, key=date_keys[i])
     st.divider()
 
     # --- Cost Adjustment & Deposit ---
@@ -167,15 +205,13 @@ def render_tab3():
         special_notes_display = st.session_state.get('special_notes')
         if special_notes_display and special_notes_display.strip(): st.subheader("📝 고객요구사항"); st.info(special_notes_display)
 
-        # --- Move Info Summary (Check syntax around line 132) ---
+        # --- Move Info Summary ---
         st.subheader("📋 이사 정보 요약")
         summary_generated = False
         try:
             # Ensure necessary functions are available
-            if not callable(getattr(pdf_generator, 'generate_excel', None)):
-                raise ImportError("pdf_generator.generate_excel is not available or callable.")
-            if not isinstance(personnel_info, dict):
-                 personnel_info = {} # Ensure personnel_info is a dict
+            if not callable(getattr(pdf_generator, 'generate_excel', None)): raise ImportError("pdf_generator.generate_excel is not available or callable.")
+            if not isinstance(personnel_info, dict): personnel_info = {}
 
             excel_data_summary = pdf_generator.generate_excel(current_state_dict, cost_items, total_cost, personnel_info)
             if excel_data_summary:
@@ -183,8 +219,7 @@ def render_tab3():
                 if "견적 정보" in xls.sheet_names and "비용 내역 및 요약" in xls.sheet_names:
                     df_info = xls.parse("견적 정보", header=None); df_cost = xls.parse("비용 내역 및 요약", header=None)
                     info_dict = dict(zip(df_info[0].astype(str), df_info[1].astype(str))) if not df_info.empty and len(df_info.columns) > 1 else {}
-
-                    # --- Helper functions (Defined inside to ensure scope) ---
+                    # Helper functions
                     def format_money_kor(amount):
                         try: amount_str = str(amount).replace(",", "").split()[0]; amount_float = float(amount_str); amount_int = int(amount_float)
                         except: return "금액오류"
@@ -199,18 +234,14 @@ def render_tab3():
                         return f"{abbr} 정보 없음"
                     def format_method(m):
                         m = str(m).strip(); return "사" if "사다리차" in m else "승" if "승강기" in m else "계" if "계단" in m else "스카이" if "스카이" in m else "?"
-                    # --- End Helper functions ---
 
                     from_addr = format_address(info_dict.get("출발지", st.session_state.get('from_location',''))); to_addr = format_address(info_dict.get("도착지", st.session_state.get('to_location','')))
                     phone = info_dict.get("고객 연락처", st.session_state.get('customer_phone','')); vehicle_type = final_selected_vehicle_calc
                     note = format_address(info_dict.get("고객요구사항", st.session_state.get('special_notes','')))
                     p_info = personnel_info if isinstance(personnel_info, dict) else {}; men = p_info.get('final_men', 0); women = p_info.get('final_women', 0); ppl = f"{men}+{women}" if women > 0 else f"{men}"
                     b_name = "포장 자재 📦"; move_t = st.session_state.base_move_type
-                    q_b = int(st.session_state.get(f"qty_{move_t}_{b_name}_바구니", 0))
-                    q_m = int(st.session_state.get(f"qty_{move_t}_{b_name}_중박스", 0))
-                    q_c = int(st.session_state.get(f"qty_{move_t}_{b_name}_옷바구니", 0))
-                    q_k = int(st.session_state.get(f"qty_{move_t}_{b_name}_책바구니", 0))
-                    bask_parts = []
+                    q_b = int(st.session_state.get(f"qty_{move_t}_{b_name}_바구니", 0)); q_m = int(st.session_state.get(f"qty_{move_t}_{b_name}_중박스", 0)); q_c = int(st.session_state.get(f"qty_{move_t}_{b_name}_옷바구니", 0)); q_k = int(st.session_state.get(f"qty_{move_t}_{b_name}_책바구니", 0))
+                    bask_parts = [];
                     if q_b > 0: bask_parts.append(f"바{q_b}")
                     if q_m > 0: bask_parts.append(f"중{q_m}")
                     if q_c > 0: bask_parts.append(f"옷{q_c}")
@@ -219,36 +250,30 @@ def render_tab3():
                     cont_fee = get_cost_abbr("계약금 (-)", "계", df_cost); rem_fee = get_cost_abbr("잔금 (VAT 별도)", "잔", df_cost)
                     w_from = format_method(info_dict.get("출발 작업", st.session_state.get('from_method',''))); w_to = format_method(info_dict.get("도착 작업", st.session_state.get('to_method',''))); work = f"출{w_from}도{w_to}"
 
-                    # --- vvv Summary Display Block - Check Lines 120-135 vvv ---
-                    st.text(f"{vehicle_type}") # Line 1 (~117)
-                    st.text("") # Line 2 (~118)
-
-                    if phone and phone != '-': # Line 3 (~120) - Check Colon!
-                        st.text(phone)         # Line 4 (~121) - Check Indentation!
-                        st.text("")            # Line 5 (~122) - Check Indentation! <<< Check Line 122 area
-
-                    if from_addr:              # Line 6 (~124) - Check Colon & Indentation!
-                        st.text(from_addr)     # Line 7 (~125) - Check Indentation!
-                    if to_addr:                # Line 8 (~126) - Check Colon!
-                        st.text(to_addr)       # Line 9 (~127) - Check Indentation!
-                    if from_addr or to_addr:   # Line 10 (~128) - Check Colon & Indentation!
-                        st.text("")            # Line 11 (~129) - Check Indentation!
-
-                    st.text(f"{ppl}")          # Line 12 (~131) - Check Indentation! <<< Check Line 130 area
-                    st.text("")                # Line 13 (~132) - Check Indentation! <<< Check Line 132 area
-
-                    if bask:                   # Line 14 (~133) - Check Colon & Indentation!
-                        st.text(bask)          # Line 15 (~134) - Check Indentation!
-                        st.text("")            # Line 16 (~135) - Check Indentation!
-                    # --- ^^^ Summary Display Block - Check Lines 120-135 ^^^ ---
-
-                    st.text(work)              # Check Indentation!
-                    st.text("")                # Check Indentation!
-                    st.text(f"{cont_fee} / {rem_fee}") # Check Indentation!
-                    st.text("")                # Check Indentation!
-                    if note:                   # Check Colon & Indentation!
+                    # Display Summary (Corrected Format, check syntax/indentation)
+                    st.text(f"{vehicle_type}")
+                    st.text("")
+                    if phone and phone != '-':
+                        st.text(phone)
+                        st.text("")
+                    if from_addr:
+                        st.text(from_addr)
+                    if to_addr:
+                        st.text(to_addr)
+                    if from_addr or to_addr:
+                        st.text("")
+                    st.text(f"{ppl}") # Likely around line 130-131
+                    st.text("")       # Likely around line 132
+                    if bask:          # Likely around line 133 - Check Colon!
+                        st.text(bask) # Check Indentation!
+                        st.text("")   # Check Indentation!
+                    st.text(work)     # Check Indentation!
+                    st.text("")
+                    st.text(f"{cont_fee} / {rem_fee}")
+                    st.text("")
+                    if note:
                         notes_list = [n.strip() for n in note.split('.') if n.strip()]
-                        for note_line in notes_list: # Check Colon & Indentation!
+                        for note_line in notes_list: # Check Colon!
                             st.text(note_line)     # Check Indentation!
 
                     summary_generated = True
