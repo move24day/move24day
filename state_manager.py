@@ -1,4 +1,4 @@
-# state_manager.py (Removed 'uploaded_images' from defaults)
+# state_manager.py (Re-added counter, removed 'uploaded_images' from defaults)
 import streamlit as st
 from datetime import datetime, date
 import pytz
@@ -66,20 +66,17 @@ def initialize_session_state(update_basket_callback):
         # REMOVED: "uploaded_images": [], # No longer managing this key directly
         "gdrive_image_files": [],
         "loaded_images": {},
+        "file_uploader_key_counter": 0 # <<< Re-added counter
     }
     # Initialize state
     for key, value in defaults.items():
         if key not in st.session_state:
             st.session_state[key] = value
 
-    # (Rest of initialization logic remains the same)
-    # ... (sync widgets, type conversion, item keys) ...
-    if 'base_move_type' not in st.session_state:
-         st.session_state.base_move_type = defaults['base_move_type']
-    if st.session_state.base_move_type_widget_tab1 != st.session_state.base_move_type:
-        st.session_state.base_move_type_widget_tab1 = st.session_state.base_move_type
-    if st.session_state.base_move_type_widget_tab3 != st.session_state.base_move_type:
-        st.session_state.base_move_type_widget_tab3 = st.session_state.base_move_type
+    # (Rest of initialization remains the same)
+    if 'base_move_type' not in st.session_state: st.session_state.base_move_type = defaults['base_move_type']
+    if st.session_state.base_move_type_widget_tab1 != st.session_state.base_move_type: st.session_state.base_move_type_widget_tab1 = st.session_state.base_move_type
+    if st.session_state.base_move_type_widget_tab3 != st.session_state.base_move_type: st.session_state.base_move_type_widget_tab3 = st.session_state.base_move_type
     int_keys = ["storage_duration", "sky_hours_from", "sky_hours_final", "add_men", "add_women", "deposit_amount", "adjustment_amount", "regional_ladder_surcharge", "dispatched_1t", "dispatched_2_5t", "dispatched_3_5t", "dispatched_5t"]
     float_keys = ["waste_tons_input"]; allow_negative_keys = ["adjustment_amount"]
     for k in int_keys + float_keys:
@@ -115,8 +112,7 @@ def initialize_session_state(update_basket_callback):
 # --- State Save/Load Helpers ---
 # (prepare_state_for_save remains the same)
 def prepare_state_for_save():
-    state_to_save = {}
-    keys_to_exclude = { 'base_move_type_widget_tab1', 'base_move_type_widget_tab3', 'gdrive_selected_filename_widget', 'uploaded_images', 'loaded_images', 'pdf_data_customer', 'final_excel_data', 'gdrive_search_results', 'gdrive_file_options_map' }
+    state_to_save = {}; keys_to_exclude = { 'base_move_type_widget_tab1', 'base_move_type_widget_tab3', 'gdrive_selected_filename_widget', 'uploaded_images', 'loaded_images', 'pdf_data_customer', 'final_excel_data', 'gdrive_search_results', 'gdrive_file_options_map', 'file_uploader_key_counter'}
     actual_keys_to_save = list(set(STATE_KEYS_TO_SAVE) - keys_to_exclude)
     for key in actual_keys_to_save:
         if key in st.session_state:
@@ -130,7 +126,7 @@ def prepare_state_for_save():
                  except Exception: print(f"Warning: Skipping non-serializable key '{key}' of type {type(value)} during save.")
     return state_to_save
 
-# (load_state_from_data remains the same)
+# (load_state_from_data remains the same - does not touch uploaded_images)
 def load_state_from_data(loaded_data, update_basket_callback):
     if not isinstance(loaded_data, dict): st.error("잘못된 형식의 파일입니다 (딕셔너리가 아님)."); return False
     try: kst = pytz.timezone("Asia/Seoul"); default_date = datetime.now(kst).date()
