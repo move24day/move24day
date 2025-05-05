@@ -167,17 +167,25 @@ def render_tab3():
         special_notes_display = st.session_state.get('special_notes')
         if special_notes_display and special_notes_display.strip(): st.subheader("📝 고객요구사항"); st.info(special_notes_display)
 
-        # --- Move Info Summary (Check syntax around line 130) ---
+        # --- Move Info Summary (Check syntax around line 132) ---
         st.subheader("📋 이사 정보 요약")
         summary_generated = False
         try:
+            # Ensure necessary functions are available
+            if not callable(getattr(pdf_generator, 'generate_excel', None)):
+                raise ImportError("pdf_generator.generate_excel is not available or callable.")
+            if not isinstance(personnel_info, dict):
+                 personnel_info = {} # Ensure personnel_info is a dict
+
             excel_data_summary = pdf_generator.generate_excel(current_state_dict, cost_items, total_cost, personnel_info)
             if excel_data_summary:
                 excel_buffer = io.BytesIO(excel_data_summary); xls = pd.ExcelFile(excel_buffer)
                 if "견적 정보" in xls.sheet_names and "비용 내역 및 요약" in xls.sheet_names:
                     df_info = xls.parse("견적 정보", header=None); df_cost = xls.parse("비용 내역 및 요약", header=None)
                     info_dict = dict(zip(df_info[0].astype(str), df_info[1].astype(str))) if not df_info.empty and len(df_info.columns) > 1 else {}
-                    def format_money_kor(amount): # Nested helper function
+
+                    # --- Helper functions (Defined inside to ensure scope) ---
+                    def format_money_kor(amount):
                         try: amount_str = str(amount).replace(",", "").split()[0]; amount_float = float(amount_str); amount_int = int(amount_float)
                         except: return "금액오류"
                         if amount_int >= 10000: return f"{amount_int // 10000}만원"
@@ -191,6 +199,7 @@ def render_tab3():
                         return f"{abbr} 정보 없음"
                     def format_method(m):
                         m = str(m).strip(); return "사" if "사다리차" in m else "승" if "승강기" in m else "계" if "계단" in m else "스카이" if "스카이" in m else "?"
+                    # --- End Helper functions ---
 
                     from_addr = format_address(info_dict.get("출발지", st.session_state.get('from_location',''))); to_addr = format_address(info_dict.get("도착지", st.session_state.get('to_location','')))
                     phone = info_dict.get("고객 연락처", st.session_state.get('customer_phone','')); vehicle_type = final_selected_vehicle_calc
@@ -201,7 +210,7 @@ def render_tab3():
                     q_m = int(st.session_state.get(f"qty_{move_t}_{b_name}_중박스", 0))
                     q_c = int(st.session_state.get(f"qty_{move_t}_{b_name}_옷바구니", 0))
                     q_k = int(st.session_state.get(f"qty_{move_t}_{b_name}_책바구니", 0))
-                    bask_parts = [] # Line ~103
+                    bask_parts = []
                     if q_b > 0: bask_parts.append(f"바{q_b}")
                     if q_m > 0: bask_parts.append(f"중{q_m}")
                     if q_c > 0: bask_parts.append(f"옷{q_c}")
@@ -210,13 +219,13 @@ def render_tab3():
                     cont_fee = get_cost_abbr("계약금 (-)", "계", df_cost); rem_fee = get_cost_abbr("잔금 (VAT 별도)", "잔", df_cost)
                     w_from = format_method(info_dict.get("출발 작업", st.session_state.get('from_method',''))); w_to = format_method(info_dict.get("도착 작업", st.session_state.get('to_method',''))); work = f"출{w_from}도{w_to}"
 
-                    # --- vvv Block around Line 130 vvv --- Check Syntax & Indentation
+                    # --- vvv Summary Display Block - Check Lines 120-135 vvv ---
                     st.text(f"{vehicle_type}") # Line 1 (~117)
-                    st.text("")                # Line 2 (~118)
+                    st.text("") # Line 2 (~118)
 
                     if phone and phone != '-': # Line 3 (~120) - Check Colon!
                         st.text(phone)         # Line 4 (~121) - Check Indentation!
-                        st.text("")            # Line 5 (~122) - Check Indentation!
+                        st.text("")            # Line 5 (~122) - Check Indentation! <<< Check Line 122 area
 
                     if from_addr:              # Line 6 (~124) - Check Colon & Indentation!
                         st.text(from_addr)     # Line 7 (~125) - Check Indentation!
@@ -226,12 +235,12 @@ def render_tab3():
                         st.text("")            # Line 11 (~129) - Check Indentation!
 
                     st.text(f"{ppl}")          # Line 12 (~131) - Check Indentation! <<< Check Line 130 area
-                    st.text("")                # Line 13 (~132) - Check Indentation!
+                    st.text("")                # Line 13 (~132) - Check Indentation! <<< Check Line 132 area
 
                     if bask:                   # Line 14 (~133) - Check Colon & Indentation!
                         st.text(bask)          # Line 15 (~134) - Check Indentation!
                         st.text("")            # Line 16 (~135) - Check Indentation!
-                    # --- ^^^ Block around Line 130 ^^^ ---
+                    # --- ^^^ Summary Display Block - Check Lines 120-135 ^^^ ---
 
                     st.text(work)              # Check Indentation!
                     st.text("")                # Check Indentation!
