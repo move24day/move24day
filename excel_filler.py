@@ -1,4 +1,4 @@
-# excel_filler.py (예시 파일)
+# excel_filler.py (수정 사항 전체 반영된 예시 파일)
 
 import openpyxl # Excel 처리 라이브러리
 import io       # 메모리 내 파일 처리를 위함
@@ -6,14 +6,20 @@ import re       # 정규 표현식 (차량 톤수 추출용)
 import streamlit as st # 오류 메시지 표시용 (선택적)
 # import math # 필요 시 사용
 
-# !!! 사용자 설정 필요: 실제 템플릿 파일 경로로 변경하세요 !!!
+# --- 설정 값 ---
+
+# 실제 템플릿 파일 이름 및 경로 (스크립트와 같은 위치에 있다고 가정)
 TEMPLATE_FILE_PATH = 'final.xlsx'
-# !!! 사용자 설정 필요: 실제 작업할 시트 이름으로 변경하세요 !!!
-TARGET_SHEET_NAME = '견적서' # 예시 시트 이름
+
+# 실제 템플릿 파일 안에 있는 시트 이름 (따옴표 안에 정확히 입력)
+# 이전 'SHEET1' 오류를 바탕으로 'Sheet1'로 가정. 실제와 다르면 수정 필요.
+TARGET_SHEET_NAME = 'Sheet1'
+
+# --- 템플릿 채우기 함수 ---
 
 def fill_final_excel_template(state_data, cost_items, total_cost, personnel_info):
     """
-    세션 상태 데이터를 기반으로 Final 견적서 Excel 템플릿을 채웁니다.
+    세션 상태 데이터를 기반으로 Final 견적서 Excel 템플릿('final.xlsx')을 채웁니다.
     B7(차량 톤수), D8(장롱 수량 1/3), B26+(고객요구사항 줄바꿈) 수정 포함.
 
     Args:
@@ -25,32 +31,37 @@ def fill_final_excel_template(state_data, cost_items, total_cost, personnel_info
     Returns:
         bytes or None: 생성된 Excel 파일의 바이트 데이터 또는 오류 발생 시 None.
     """
+    print(f"INFO [Excel Filler]: Starting Excel generation with template '{TEMPLATE_FILE_PATH}', sheet '{TARGET_SHEET_NAME}'")
     try:
         # --- 1. 템플릿 파일 로드 ---
         try:
             wb = openpyxl.load_workbook(TEMPLATE_FILE_PATH)
             # 지정된 이름의 시트 가져오기
-            sheet = wb[SHEET1]
+            sheet = wb[TARGET_SHEET_NAME]
+            print(f"INFO [Excel Filler]: Template loaded and sheet '{TARGET_SHEET_NAME}' accessed.")
         except FileNotFoundError:
             error_msg = f"엑셀 템플릿 파일을 찾을 수 없습니다: '{TEMPLATE_FILE_PATH}'"
             st.error(error_msg)
-            print(f"ERROR: {error_msg}")
+            print(f"ERROR [Excel Filler]: {error_msg}")
             return None
         except KeyError:
             error_msg = f"엑셀 템플릿에 '{TARGET_SHEET_NAME}' 시트가 없습니다. 시트 이름을 확인하세요."
             st.error(error_msg)
-            print(f"ERROR: {error_msg}")
+            print(f"ERROR [Excel Filler]: {error_msg}")
             return None
         except Exception as e:
              error_msg = f"엑셀 템플릿 로드 중 오류 발생: {e}"
              st.error(error_msg)
-             print(f"ERROR: {error_msg}")
+             print(f"ERROR [Excel Filler]: {error_msg}")
              return None
 
         # --- 2. (기존 로직) 다른 셀들 채우기 ---
-        # 여기에 기존에 템플릿의 다른 셀들(고객명, 날짜, 비용 항목 등)을 채우는 코드를 넣으세요.
-        # 예시: sheet['A1'] = state_data.get('customer_name', '')
-        # ... (기존 코드 삽입) ...
+        # !!! 중요: 여기에 기존 템플릿의 다른 셀들(고객명, 날짜, 비용 항목 등)을 채우는 코드를 넣으세요. !!!
+        # 예시:
+        # sheet['C4'] = state_data.get('customer_name', '') # 고객명 (실제 셀 주소는 템플릿에 맞게)
+        # sheet['C5'] = state_data.get('customer_phone', '') # 연락처 (실제 셀 주소는 템플릿에 맞게)
+        # ... 비용 항목(cost_items) 및 총 비용(total_cost) 등을 채우는 로직 ...
+        print("INFO [Excel Filler]: Placeholder for filling other cells.")
 
 
         # --- 3. 요청된 수정 사항 적용 ---
@@ -68,8 +79,7 @@ def fill_final_excel_template(state_data, cost_items, total_cost, personnel_info
                 else: # 정규식 실패 시 '톤' 글자 제거 시도
                     print(f"DEBUG [Excel Filler B7]: Regex failed, trying replace method.")
                     vehicle_tonnage_replaced = vehicle_str.replace('톤', '').strip()
-                    # 제거 후 남은 것이 숫자인지 확인
-                    if re.fullmatch(r'\d+(\.\d+)?', vehicle_tonnage_replaced):
+                    if re.fullmatch(r'\d+(\.\d+)?', vehicle_tonnage_replaced): # 제거 후 숫자인지 확인
                         vehicle_tonnage = vehicle_tonnage_replaced
                         print(f"DEBUG [Excel Filler B7]: Replace succeeded, tonnage = '{vehicle_tonnage}'")
                     else:
@@ -139,16 +149,13 @@ def fill_final_excel_template(state_data, cost_items, total_cost, personnel_info
         print(f"DEBUG [Excel Filler B26+]: Received special_notes = '{special_notes[:50]}...'") # 앞 50자만 출력
 
         # --- 이전에 작성된 노트 내용 지우기 (선택적이지만 권장) ---
-        # 이전에 노트가 더 길었을 경우를 대비하여 예상 최대 줄 수만큼 지웁니다.
         max_possible_note_lines = 20 # 예시: 최대 20줄 가정 (필요시 조정)
         for i in range(max_possible_note_lines):
              clear_cell_addr = f"B{start_row_notes + i}"
              try:
-                 # 해당 셀에 값이 있을 경우에만 None으로 설정하여 지웁니다.
                  if sheet[clear_cell_addr].value is not None:
-                      sheet[clear_cell_addr].value = None
+                      sheet[clear_cell_addr].value = None # 셀 내용 지우기
              except Exception as e:
-                  # 셀 접근 오류 등 발생 시 경고 출력 (무시하고 계속 진행)
                   print(f"Warning [Excel Filler B26+]: Could not clear cell {clear_cell_addr}: {e}")
         # --- 이전 노트 지우기 끝 ---
 
@@ -187,3 +194,31 @@ def fill_final_excel_template(state_data, cost_items, total_cost, personnel_info
         return None
 
 # --- (파일의 끝) ---
+
+# 예시: 이 함수를 테스트하기 위한 간단한 방법 (실제 앱에서는 app.py 등에서 호출됨)
+if __name__ == '__main__':
+    # 테스트용 가상 데이터 생성
+    mock_state_data = {
+        'final_selected_vehicle': '5톤 트럭',
+        'base_move_type': '가정 이사 🏠',
+        'qty_가정 이사 🏠_주요 품목_장롱': '10', # 장롱 키는 실제 키로 맞춰야 함
+        'special_notes': '첫번째 요구사항입니다. 두번째 입니다. 세번째. 네번째 문장.'
+        # ... 기타 필요한 state_data 값들 ...
+    }
+    mock_cost_items = []
+    mock_total_cost = 0
+    mock_personnel_info = {}
+
+    print("--- Running Test ---")
+    excel_bytes = fill_final_excel_template(mock_state_data, mock_cost_items, mock_total_cost, mock_personnel_info)
+
+    if excel_bytes:
+        # 테스트 결과 파일로 저장해보기 (선택적)
+        try:
+            with open("test_output.xlsx", "wb") as f:
+                f.write(excel_bytes)
+            print("--- Test finished. Output saved to test_output.xlsx ---")
+        except Exception as write_e:
+            print(f"--- Test finished. Could not save output file: {write_e} ---")
+    else:
+        print("--- Test failed. No Excel data generated. ---")
