@@ -1,4 +1,4 @@
-# state_manager.py (Default for uploaded_images changed back to [])
+# state_manager.py (Removed 'uploaded_images' from defaults)
 import streamlit as st
 from datetime import datetime, date
 import pytz
@@ -63,36 +63,31 @@ def initialize_session_state(update_basket_callback):
         "gdrive_selected_file_id": None,
         "base_move_type_widget_tab1": MOVE_TYPE_OPTIONS[0],
         "base_move_type_widget_tab3": MOVE_TYPE_OPTIONS[0],
-        # --- CHANGE DEFAULT BACK TO [] ---
-        "uploaded_images": [], # Use empty list as default for multi-file uploader
-        # ---------------------------------
+        # REMOVED: "uploaded_images": [], # No longer managing this key directly
         "gdrive_image_files": [],
         "loaded_images": {},
     }
+    # Initialize state
     for key, value in defaults.items():
         if key not in st.session_state:
             st.session_state[key] = value
 
-    # (Rest of initialization remains the same)
+    # (Rest of initialization logic remains the same)
+    # ... (sync widgets, type conversion, item keys) ...
     if 'base_move_type' not in st.session_state:
          st.session_state.base_move_type = defaults['base_move_type']
     if st.session_state.base_move_type_widget_tab1 != st.session_state.base_move_type:
         st.session_state.base_move_type_widget_tab1 = st.session_state.base_move_type
     if st.session_state.base_move_type_widget_tab3 != st.session_state.base_move_type:
         st.session_state.base_move_type_widget_tab3 = st.session_state.base_move_type
-    int_keys = ["storage_duration", "sky_hours_from", "sky_hours_final", "add_men", "add_women",
-                "deposit_amount", "adjustment_amount", "regional_ladder_surcharge",
-                "dispatched_1t", "dispatched_2_5t", "dispatched_3_5t", "dispatched_5t"]
-    float_keys = ["waste_tons_input"]
-    allow_negative_keys = ["adjustment_amount"]
+    int_keys = ["storage_duration", "sky_hours_from", "sky_hours_final", "add_men", "add_women", "deposit_amount", "adjustment_amount", "regional_ladder_surcharge", "dispatched_1t", "dispatched_2_5t", "dispatched_3_5t", "dispatched_5t"]
+    float_keys = ["waste_tons_input"]; allow_negative_keys = ["adjustment_amount"]
     for k in int_keys + float_keys:
         default_val_k = defaults.get(k)
         if k not in st.session_state: st.session_state[k] = default_val_k
         try:
-            val = st.session_state.get(k)
-            target_type = int if k in int_keys else float
-            if val is None or (isinstance(val, str) and val.strip() == ''):
-                 st.session_state[k] = default_val_k; continue
+            val = st.session_state.get(k); target_type = int if k in int_keys else float
+            if val is None or (isinstance(val, str) and val.strip() == ''): st.session_state[k] = default_val_k; continue
             converted_val = target_type(val)
             if k in int_keys:
                 if k in allow_negative_keys: st.session_state[k] = converted_val
@@ -100,8 +95,7 @@ def initialize_session_state(update_basket_callback):
             else: st.session_state[k] = max(0.0, converted_val)
         except (ValueError, TypeError): st.session_state[k] = default_val_k
         except KeyError: st.session_state[k] = 0 if k in int_keys else 0.0
-    global STATE_KEYS_TO_SAVE
-    processed_init_keys = set(); item_keys_to_save = []
+    global STATE_KEYS_TO_SAVE; processed_init_keys = set(); item_keys_to_save = []
     if hasattr(data, 'item_definitions'):
         for move_type, sections in data.item_definitions.items():
             if isinstance(sections, dict):
@@ -110,26 +104,19 @@ def initialize_session_state(update_basket_callback):
                     if isinstance(item_list, list):
                         for item in item_list:
                             if item in data.items:
-                                key = f"qty_{move_type}_{section}_{item}"
-                                item_keys_to_save.append(key)
-                                if key not in st.session_state and key not in processed_init_keys:
-                                    st.session_state[key] = 0
+                                key = f"qty_{move_type}_{section}_{item}"; item_keys_to_save.append(key)
+                                if key not in st.session_state and key not in processed_init_keys: st.session_state[key] = 0
                                 processed_init_keys.add(key)
     else: print("Warning: data.item_definitions not found during state initialization.")
     STATE_KEYS_TO_SAVE = list(set(STATE_KEYS_TO_SAVE + item_keys_to_save))
-    if 'prev_final_selected_vehicle' not in st.session_state:
-        st.session_state['prev_final_selected_vehicle'] = st.session_state.get('final_selected_vehicle')
+    if 'prev_final_selected_vehicle' not in st.session_state: st.session_state['prev_final_selected_vehicle'] = st.session_state.get('final_selected_vehicle')
+
 
 # --- State Save/Load Helpers ---
 # (prepare_state_for_save remains the same)
 def prepare_state_for_save():
     state_to_save = {}
-    keys_to_exclude = {
-        'base_move_type_widget_tab1', 'base_move_type_widget_tab3',
-        'gdrive_selected_filename_widget',
-        'uploaded_images', 'loaded_images', 'pdf_data_customer',
-        'final_excel_data', 'gdrive_search_results', 'gdrive_file_options_map',
-    }
+    keys_to_exclude = { 'base_move_type_widget_tab1', 'base_move_type_widget_tab3', 'gdrive_selected_filename_widget', 'uploaded_images', 'loaded_images', 'pdf_data_customer', 'final_excel_data', 'gdrive_search_results', 'gdrive_file_options_map' }
     actual_keys_to_save = list(set(STATE_KEYS_TO_SAVE) - keys_to_exclude)
     for key in actual_keys_to_save:
         if key in st.session_state:
@@ -137,8 +124,7 @@ def prepare_state_for_save():
             if isinstance(value, date):
                 try: state_to_save[key] = value.isoformat()
                 except Exception: print(f"Warning: Could not serialize date key '{key}' for saving.")
-            elif isinstance(value, (str, int, float, bool, list, dict)) or value is None:
-                 state_to_save[key] = value
+            elif isinstance(value, (str, int, float, bool, list, dict)) or value is None: state_to_save[key] = value
             else:
                  try: state_to_save[key] = str(value)
                  except Exception: print(f"Warning: Skipping non-serializable key '{key}' of type {type(value)} during save.")
@@ -146,29 +132,13 @@ def prepare_state_for_save():
 
 # (load_state_from_data remains the same)
 def load_state_from_data(loaded_data, update_basket_callback):
-    if not isinstance(loaded_data, dict):
-        st.error("잘못된 형식의 파일입니다 (딕셔너리가 아님).")
-        return False
+    if not isinstance(loaded_data, dict): st.error("잘못된 형식의 파일입니다 (딕셔너리가 아님)."); return False
     try: kst = pytz.timezone("Asia/Seoul"); default_date = datetime.now(kst).date()
     except Exception: default_date = datetime.now().date()
-    defaults_for_recovery = {
-        "base_move_type": MOVE_TYPE_OPTIONS[0], "is_storage_move": False, "storage_type": data.DEFAULT_STORAGE_TYPE,
-        "apply_long_distance": False, "customer_name": "", "customer_phone": "", "from_location": "",
-        "to_location": "", "moving_date": default_date, "from_floor": "", "from_method": data.METHOD_OPTIONS[0],
-        "to_floor": "", "to_method": data.METHOD_OPTIONS[0], "special_notes": "", "storage_duration": 1,
-        "long_distance_selector": data.long_distance_options[0], "vehicle_select_radio": "자동 추천 차량 사용",
-        "manual_vehicle_select_value": None, "final_selected_vehicle": None, "prev_final_selected_vehicle": None,
-        "sky_hours_from": 1, "sky_hours_final": 1, "add_men": 0, "add_women": 0, "has_waste_check": False, "waste_tons_input": 0.5,
-        "date_opt_0_widget": False, "date_opt_1_widget": False, "date_opt_2_widget": False,
-        "date_opt_3_widget": False, "date_opt_4_widget": False, "deposit_amount": 0, "adjustment_amount": 0,
-        "regional_ladder_surcharge": 0, "remove_base_housewife": False,
-        "dispatched_1t": 0, "dispatched_2_5t": 0, "dispatched_3_5t": 0, "dispatched_5t": 0,
-        "gdrive_image_files": []
-    }
+    defaults_for_recovery = { "base_move_type": MOVE_TYPE_OPTIONS[0], "is_storage_move": False, "storage_type": data.DEFAULT_STORAGE_TYPE, "apply_long_distance": False, "customer_name": "", "customer_phone": "", "from_location": "", "to_location": "", "moving_date": default_date, "from_floor": "", "from_method": data.METHOD_OPTIONS[0], "to_floor": "", "to_method": data.METHOD_OPTIONS[0], "special_notes": "", "storage_duration": 1, "long_distance_selector": data.long_distance_options[0], "vehicle_select_radio": "자동 추천 차량 사용", "manual_vehicle_select_value": None, "final_selected_vehicle": None, "prev_final_selected_vehicle": None, "sky_hours_from": 1, "sky_hours_final": 1, "add_men": 0, "add_women": 0, "has_waste_check": False, "waste_tons_input": 0.5, "date_opt_0_widget": False, "date_opt_1_widget": False, "date_opt_2_widget": False, "date_opt_3_widget": False, "date_opt_4_widget": False, "deposit_amount": 0, "adjustment_amount": 0, "regional_ladder_surcharge": 0, "remove_base_housewife": False, "dispatched_1t": 0, "dispatched_2_5t": 0, "dispatched_3_5t": 0, "dispatched_5t": 0, "gdrive_image_files": [] }
     dynamic_keys = [key for key in STATE_KEYS_TO_SAVE if key.startswith("qty_")]
     for key in dynamic_keys:
         if key not in defaults_for_recovery: defaults_for_recovery[key] = 0
-
     st.session_state.loaded_images = {}
     int_keys = ["storage_duration", "sky_hours_from", "sky_hours_final", "add_men", "add_women", "deposit_amount", "adjustment_amount", "regional_ladder_surcharge", "dispatched_1t", "dispatched_2_5t", "dispatched_3_5t", "dispatched_5t"]
     float_keys = ["waste_tons_input"]; allow_negative_keys = ["adjustment_amount"]
