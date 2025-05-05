@@ -167,7 +167,7 @@ def render_tab3():
         special_notes_display = st.session_state.get('special_notes')
         if special_notes_display and special_notes_display.strip(): st.subheader("📝 고객요구사항"); st.info(special_notes_display)
 
-        # --- Move Info Summary (Check syntax around line 127) ---
+        # --- Move Info Summary (Check syntax around line 130) ---
         st.subheader("📋 이사 정보 요약")
         summary_generated = False
         try:
@@ -197,8 +197,11 @@ def render_tab3():
                     note = format_address(info_dict.get("고객요구사항", st.session_state.get('special_notes','')))
                     p_info = personnel_info if isinstance(personnel_info, dict) else {}; men = p_info.get('final_men', 0); women = p_info.get('final_women', 0); ppl = f"{men}+{women}" if women > 0 else f"{men}"
                     b_name = "포장 자재 📦"; move_t = st.session_state.base_move_type
-                    q_b = int(st.session_state.get(f"qty_{move_t}_{b_name}_바구니", 0)); q_m = int(st.session_state.get(f"qty_{move_t}_{b_name}_중박스", 0)); q_c = int(st.session_state.get(f"qty_{move_t}_{b_name}_옷바구니", 0)); q_k = int(st.session_state.get(f"qty_{move_t}_{b_name}_책바구니", 0))
-                    bask_parts = [];
+                    q_b = int(st.session_state.get(f"qty_{move_t}_{b_name}_바구니", 0))
+                    q_m = int(st.session_state.get(f"qty_{move_t}_{b_name}_중박스", 0))
+                    q_c = int(st.session_state.get(f"qty_{move_t}_{b_name}_옷바구니", 0))
+                    q_k = int(st.session_state.get(f"qty_{move_t}_{b_name}_책바구니", 0))
+                    bask_parts = [] # Line ~103
                     if q_b > 0: bask_parts.append(f"바{q_b}")
                     if q_m > 0: bask_parts.append(f"중{q_m}")
                     if q_c > 0: bask_parts.append(f"옷{q_c}")
@@ -207,33 +210,37 @@ def render_tab3():
                     cont_fee = get_cost_abbr("계약금 (-)", "계", df_cost); rem_fee = get_cost_abbr("잔금 (VAT 별도)", "잔", df_cost)
                     w_from = format_method(info_dict.get("출발 작업", st.session_state.get('from_method',''))); w_to = format_method(info_dict.get("도착 작업", st.session_state.get('to_method',''))); work = f"출{w_from}도{w_to}"
 
-                    # --- vvv Summary Display Block - Check Lines 120-129 vvv ---
-                    st.text(f"{vehicle_type}") # Line 1
-                    st.text("") # Line 2
+                    # --- vvv Block around Line 130 vvv --- Check Syntax & Indentation
+                    st.text(f"{vehicle_type}") # Line 1 (~117)
+                    st.text("")                # Line 2 (~118)
 
-                    if phone and phone != '-': # Line 3 (Check Colon!)
-                        st.text(phone)         # Line 4 (Check Indentation!)
-                        st.text("")            # Line 5 (Check Indentation!)
+                    if phone and phone != '-': # Line 3 (~120) - Check Colon!
+                        st.text(phone)         # Line 4 (~121) - Check Indentation!
+                        st.text("")            # Line 5 (~122) - Check Indentation!
 
-                    if from_addr:              # Line 6 (Check Colon and Indentation)
-                        st.text(from_addr)     # Line 7 (Check Indentation!)
-                    if to_addr:                # Line 8 (Check Colon!) <<< Check Line 126
-                        st.text(to_addr)       # Line 9 (Check Indentation!) <<< Check Line 127
-                    if from_addr or to_addr:   # Line 10 (Check Colon and Indentation)
-                        st.text("")            # Line 11 (Check Indentation!)
-                    # It's possible the line numbers reported are slightly off.
-                    # Carefully check the whole block from line 120 to 132 below.
+                    if from_addr:              # Line 6 (~124) - Check Colon & Indentation!
+                        st.text(from_addr)     # Line 7 (~125) - Check Indentation!
+                    if to_addr:                # Line 8 (~126) - Check Colon!
+                        st.text(to_addr)       # Line 9 (~127) - Check Indentation!
+                    if from_addr or to_addr:   # Line 10 (~128) - Check Colon & Indentation!
+                        st.text("")            # Line 11 (~129) - Check Indentation!
 
-                    st.text(f"{ppl}")          # Line 12 (Check Indentation)
-                    st.text("")                # Line 13 (Check Indentation)
-                    # --- ^^^ Summary Display Block - Check Lines 120-132 ^^^ ---
+                    st.text(f"{ppl}")          # Line 12 (~131) - Check Indentation! <<< Check Line 130 area
+                    st.text("")                # Line 13 (~132) - Check Indentation!
 
-                    if bask: st.text(bask); st.text("")
-                    st.text(work); st.text("")
-                    st.text(f"{cont_fee} / {rem_fee}"); st.text("")
-                    if note:
+                    if bask:                   # Line 14 (~133) - Check Colon & Indentation!
+                        st.text(bask)          # Line 15 (~134) - Check Indentation!
+                        st.text("")            # Line 16 (~135) - Check Indentation!
+                    # --- ^^^ Block around Line 130 ^^^ ---
+
+                    st.text(work)              # Check Indentation!
+                    st.text("")                # Check Indentation!
+                    st.text(f"{cont_fee} / {rem_fee}") # Check Indentation!
+                    st.text("")                # Check Indentation!
+                    if note:                   # Check Colon & Indentation!
                         notes_list = [n.strip() for n in note.split('.') if n.strip()]
-                        for note_line in notes_list: st.text(note_line)
+                        for note_line in notes_list: # Check Colon & Indentation!
+                            st.text(note_line)     # Check Indentation!
 
                     summary_generated = True
                 else: st.warning("⚠️ 요약 정보 생성 실패 (필수 Excel 시트 누락)")
