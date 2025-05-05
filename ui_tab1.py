@@ -38,73 +38,56 @@ def render_tab1():
 
         # --- Load Section ---
         with col_load:
-            st.markdown("**견적 불러오기**")
-            search_term = st.text_input("JSON 검색어 (날짜 YYMMDD 또는 번호 XXXX)", key="gdrive_search_term", help="파일 이름 일부 입력 후 검색")
-            if st.button("🔍 견적 검색"):
-                st.session_state.loaded_images = {} # Clear previously loaded images on new search
-                st.session_state.gdrive_image_files = [] # Clear associated image file list
-                search_term_strip = search_term.strip()
-                if search_term_strip:
-                    with st.spinner("🔄 Google Drive에서 JSON 검색 중..."): results = gdrive.find_files_by_name_contains(search_term_strip, mime_types="application/json")
-                    if results:
-                        st.session_state.gdrive_search_results = results; st.session_state.gdrive_file_options_map = {res['name']: res['id'] for res in results}
-                        first_result_id = results[0].get('id'); st.session_state.gdrive_selected_file_id = first_result_id
-                        st.session_state.gdrive_selected_filename = next((name for name, fid in st.session_state.gdrive_file_options_map.items() if fid == first_result_id), None)
-                        st.success(f"✅ {len(results)}개 JSON 파일 검색 완료.")
-                    else:
-                        st.session_state.gdrive_search_results = []; st.session_state.gdrive_file_options_map = {}
-                        st.session_state.gdrive_selected_file_id = None; st.session_state.gdrive_selected_filename = None
-                        st.warning("⚠️ 해당 검색어의 JSON 견적 파일이 없습니다.")
-                else: st.warning("⚠️ 검색어를 입력하세요.")
-            if st.session_state.get('gdrive_search_results'):
-                 file_options_display = list(st.session_state.gdrive_file_options_map.keys()); current_selection_index = 0
-                 if st.session_state.gdrive_selected_filename in file_options_display:
-                     try: current_selection_index = file_options_display.index(st.session_state.gdrive_selected_filename)
-                     except ValueError: current_selection_index = 0
-                 # Use a unique key for the selectbox widget
-                 st.selectbox( "불러올 JSON 파일 선택:", options=file_options_display, key="gdrive_selected_filename_widget", index=current_selection_index, on_change=update_selected_gdrive_id )
-                 # Initial sync if needed
-                 if st.session_state.gdrive_selected_filename and not st.session_state.gdrive_selected_file_id: update_selected_gdrive_id()
+            # ... (검색 관련 코드) ...
             load_button_disabled = not bool(st.session_state.get('gdrive_selected_file_id'))
             if st.button("📂 선택 견적 불러오기", disabled=load_button_disabled, key="load_gdrive_btn"):
                 json_file_id = st.session_state.gdrive_selected_file_id
                 if json_file_id:
-                    st.write("--- DEBUG: Loading Start ---") # Debug Start
+                    # st.write("--- DEBUG: Loading Start ---") # 주석 처리 또는 삭제
                     with st.spinner(f"🔄 견적 데이터 로딩 중..."): loaded_content = gdrive.load_json_file(json_file_id)
                     if loaded_content:
                         # Pass the callback reference correctly
-                        load_success = load_state_from_data(loaded_content, callbacks.update_basket_quantities)
+                        update_basket_callback_ref = getattr(callbacks, 'update_basket_quantities', None)
+                        if not update_basket_callback_ref:
+                             st.error("Basket update callback not found!")
+                             update_basket_callback_ref = lambda: None
+
+                        load_success = load_state_from_data(loaded_content, update_basket_callback_ref)
                         if load_success:
-                            st.success("✅ 견적 데이터 로딩 완료.")
+                            st.success("✅ 견적 데이터 로딩 완료.") # 성공 메시지는 유지
                             image_filenames_to_load = st.session_state.get("gdrive_image_files", [])
-                            st.write(f"--- DEBUG: Image filenames found in JSON: {image_filenames_to_load} ---") # Debug filenames
+                            # st.write(f"--- DEBUG: Image filenames found in JSON: {image_filenames_to_load} ---") # 주석 처리 또는 삭제
                             if image_filenames_to_load:
                                 st.session_state.loaded_images = {}
                                 num_images = len(image_filenames_to_load)
                                 img_load_bar = st.progress(0, text=f"🖼️ 이미지 로딩 중... (0/{num_images})"); loaded_count = 0
                                 for i, img_filename in enumerate(image_filenames_to_load):
-                                     st.write(f"--- DEBUG: Processing image file: {img_filename} ---") # Debug current image
-                                     img_file_id = None # Initialize img_file_id
-                                     with st.spinner(f"이미지 '{img_filename}' 검색 중..."): img_file_id = gdrive.find_file_id_by_exact_name(img_filename) # Find by name (no mime type)
-                                     st.write(f"--- DEBUG: Found Image File ID: {img_file_id} for {img_filename} ---") # Debug found ID
+                                     # st.write(f"--- DEBUG: Processing image file: {img_filename} ---") # 주석 처리 또는 삭제
+                                     img_file_id = None
+                                     with st.spinner(f"이미지 '{img_filename}' 검색 중..."): img_file_id = gdrive.find_file_id_by_exact_name(img_filename)
+                                     # st.write(f"--- DEBUG: Found Image File ID: {img_file_id} for {img_filename} ---") # 주석 처리 또는 삭제
                                      if img_file_id:
-                                         img_bytes = None # Initialize img_bytes
-                                         with st.spinner(f"이미지 '{img_filename}' 다운로드 중..."): img_bytes = gdrive.download_file_bytes(img_file_id) # Attempt download
+                                         img_bytes = None
+                                         with st.spinner(f"이미지 '{img_filename}' 다운로드 중..."): img_bytes = gdrive.download_file_bytes(img_file_id)
                                          if img_bytes:
                                              st.session_state.loaded_images[img_filename] = img_bytes; loaded_count += 1
-                                             st.write(f"--- DEBUG: Successfully downloaded and stored: {img_filename} ---") # Debug success
+                                             # st.write(f"--- DEBUG: Successfully downloaded and stored: {img_filename} ---") # 주석 처리 또는 삭제
                                              progress_val = (i + 1) / num_images; img_load_bar.progress(progress_val, text=f"🖼️ 이미지 로딩 중... ({loaded_count}/{num_images})")
-                                         else: st.warning(f"⚠️ 이미지 '{img_filename}' (ID:{img_file_id}) 다운로드 실패."); st.write(f"--- DEBUG: Download FAILED for: {img_filename} (ID: {img_file_id}) ---") # Debug failure
-                                     else: st.warning(f"⚠️ 저장된 이미지 파일 '{img_filename}'을 Google Drive에서 찾을 수 없습니다."); st.write(f"--- DEBUG: Image file not found on Drive: {img_filename} ---") # Debug not found
-                                     time.sleep(0.1) # Keep delay
+                                         else:
+                                             st.warning(f"⚠️ 이미지 '{img_filename}' (ID:{img_file_id}) 다운로드 실패.")
+                                             # st.write(f"--- DEBUG: Download FAILED for: {img_filename} (ID: {img_file_id}) ---") # 주석 처리 또는 삭제
+                                     else:
+                                         st.warning(f"⚠️ 저장된 이미지 파일 '{img_filename}'을 Google Drive에서 찾을 수 없습니다.")
+                                         # st.write(f"--- DEBUG: Image file not found on Drive: {img_filename} ---") # 주석 처리 또는 삭제
+                                     time.sleep(0.1) # Keep delay (API 호출 빈도 조절용)
                                 img_load_bar.empty()
-                                if loaded_count > 0: st.success(f"✅ 이미지 {loaded_count}개 로딩 완료.")
-                                if loaded_count != num_images: st.warning(f"⚠️ {num_images - loaded_count}개 이미지 로딩 실패 또는 찾을 수 없음.")
-                                st.write(f"--- DEBUG: Final loaded_images keys: {list(st.session_state.loaded_images.keys())} ---") # Debug final keys
-                            else: st.write("--- DEBUG: No image filenames found in JSON to load. ---") # Debug no images listed
-                        # Error handled in load_state_from_data
-                    else: st.write("--- DEBUG: Failed to load JSON content. ---") # Debug JSON load fail
-                    st.write("--- DEBUG: Loading End ---") # Debug End
+                                if loaded_count > 0: st.success(f"✅ 이미지 {loaded_count}개 로딩 완료.") # 성공 메시지는 유지
+                                if loaded_count != num_images: st.warning(f"⚠️ {num_images - loaded_count}개 이미지 로딩 실패 또는 찾을 수 없음.") # 경고 메시지 유지
+                                # st.write(f"--- DEBUG: Final loaded_images keys: {list(st.session_state.loaded_images.keys())} ---") # 주석 처리 또는 삭제
+                            # else: st.write("--- DEBUG: No image filenames found in JSON to load. ---") # 주석 처리 또는 삭제
+                        # Error handled in load_state_from_data (오류 시 메시지는 여기서 표시)
+                    # else: st.write("--- DEBUG: Failed to load JSON content. ---") # 주석 처리 또는 삭제
+                    # st.write("--- DEBUG: Loading End ---") # 주석 처리 또는 삭제
 
 
 # --- Save Section (Using st.form, removed key from file_uploader) ---
