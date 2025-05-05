@@ -58,13 +58,12 @@ def render_tab3():
     # --- Vehicle Selection ---
     if hasattr(st, "container"):
         with st.container(border=True):
-            st.subheader("🚚 차반 선택")
-            col_v1_widget, col_v2_widget = st.columns([1, 2])
-            with col_v1_widget:
-                st.radio("차반 선택 방식:", ["자동 추천 차반 사용", "수동으로 차반 선택"],
-                         key="vehicle_select_radio",
-                         help="자동 추천을 사용하거나, 목록에서 직접 차반을 선택합니다.",
-                         on_change=update_basket_quantities)
+st.radio(
+    "차량 선택 방식:",  # 라벨 수정: 차반 -> 차량
+    ["자동 추천 차량 사용", "수동으로 차량 선택"], # 옵션 수정: 차반 -> 차량
+    key="vehicle_select_radio",
+    help="자동 추천을 사용하거나, 목록에서 직접 차량을 선택합니다.",
+    on_change=update_basket_quantities)
             with col_v2_widget:
                 current_move_type_widget = st.session_state.base_move_type
                 vehicle_prices_options_widget = data.vehicle_prices.get(current_move_type_widget, {})
