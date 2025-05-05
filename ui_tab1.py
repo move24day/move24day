@@ -203,21 +203,35 @@ def render_tab1():
     try: current_index_tab1 = MOVE_TYPE_OPTIONS.index(st.session_state.base_move_type)
     except ValueError: current_index_tab1 = 0
     st.radio( "🏢 **기본 이사 유형**", options=MOVE_TYPE_OPTIONS, index=current_index_tab1, horizontal=True, key="base_move_type_widget_tab1", on_change=sync_move_type, args=("base_move_type_widget_tab1",) )
-    col_opts1, col_opts2 = st.columns(2); with col_opts1: st.checkbox("📦 보관이사 여부", key="is_storage_move"); with col_opts2: st.checkbox("🛣️ 장거리 이사 적용", key="apply_long_distance"); st.write("")
+
+    # --- 수정된 부분 시작 ---
+    col_opts1, col_opts2 = st.columns(2)
+    with col_opts1:
+        st.checkbox("📦 보관이사 여부", key="is_storage_move") # with 블록 안으로 들여쓰기
+    with col_opts2:
+        st.checkbox("🛣️ 장거리 이사 적용", key="apply_long_distance") # with 블록 안으로 들여쓰기
+    # st.write("") # 필요하다면 유지, 아니면 제거
+
     col1, col2 = st.columns(2)
     with col1:
-        st.text_input("👤 고객명", key="customer_name"); st.text_input("📍 출발지 주소", key="from_location")
-        if st.session_state.get('apply_long_distance'): st.selectbox("🛣️ 장거리 구간 선택", data.long_distance_options, key="long_distance_selector")
-        st.text_input("🔼 출발지 층수", key="from_floor", placeholder="예: 3, B1, -1"); st.selectbox("🛠️ 출발지 작업 방법", data.METHOD_OPTIONS, key="from_method", help="사다리차, 승강기, 계단, 스카이 중 선택")
+        st.text_input("👤 고객명", key="customer_name") # 각 명령어를 별도 줄로 분리
+        st.text_input("📍 출발지 주소", key="from_location")
+        if st.session_state.get('apply_long_distance'):
+            st.selectbox("🛣️ 장거리 구간 선택", data.long_distance_options, key="long_distance_selector")
+        st.text_input("🔼 출발지 층수", key="from_floor", placeholder="예: 3, B1, -1")
+        st.selectbox("🛠️ 출발지 작업 방법", data.METHOD_OPTIONS, key="from_method", help="사다리차, 승강기, 계단, 스카이 중 선택")
     with col2:
-        st.text_input("📞 전화번호", key="customer_phone", placeholder="01012345678"); st.text_input("📍 도착지 주소", key="to_location", placeholder="이사 도착지 상세 주소")
-        st.text_input("🔽 도착지 층수", key="to_floor", placeholder="예: 5, B2, -2"); st.selectbox("🛠️ 도착지 작업 방법", data.METHOD_OPTIONS, key="to_method", help="사다리차, 승강기, 계단, 스카이 중 선택")
+        st.text_input("📞 전화번호", key="customer_phone", placeholder="01012345678") # 각 명령어를 별도 줄로 분리
+        st.text_input("📍 도착지 주소", key="to_location", placeholder="이사 도착지 상세 주소")
+        st.text_input("🔽 도착지 층수", key="to_floor", placeholder="예: 5, B2, -2")
+        st.selectbox("🛠️ 도착지 작업 방법", data.METHOD_OPTIONS, key="to_method", help="사다리차, 승강기, 계단, 스카이 중 선택")
         current_moving_date_val = st.session_state.get('moving_date')
         if not isinstance(current_moving_date_val, date):
              try: kst_def = pytz.timezone("Asia/Seoul"); default_date_def = datetime.now(kst_def).date()
              except Exception: default_date_def = datetime.now().date()
              st.session_state.moving_date = default_date_def
-        st.date_input("🗓️ 이사 예정일 (출발일)", key="moving_date"); st.caption(f"⏱️ 견적 생성일: {utils.get_current_kst_time_str()}")
+        st.date_input("🗓️ 이사 예정일 (출발일)", key="moving_date")
+        st.caption(f"⏱️ 견적 생성일: {utils.get_current_kst_time_str()}")
     st.divider()
 
     # --- Display Loaded Images ---
