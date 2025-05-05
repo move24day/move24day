@@ -1,4 +1,4 @@
-# state_manager.py (Relevant part updated)
+# state_manager.py (Added file_uploader_key_counter)
 import streamlit as st
 from datetime import datetime, date
 import pytz
@@ -12,9 +12,10 @@ except ImportError as e:
     st.error(f"State Manager: 필수 모듈 로딩 실패 - {e}")
     st.stop()
 
-# --- Constants --- (Keep as before)
+# --- Constants ---
 MOVE_TYPE_OPTIONS = list(data.item_definitions.keys()) if hasattr(data, 'item_definitions') else ["가정 이사 🏠", "사무실 이사 🏢"]
 STATE_KEYS_TO_SAVE = [
+    # ... (all previous keys remain the same) ...
     "base_move_type", "is_storage_move", "storage_type", "apply_long_distance",
     "customer_name", "customer_phone", "from_location", "to_location", "moving_date",
     "from_floor", "from_method", "to_floor", "to_method", "special_notes",
@@ -28,14 +29,18 @@ STATE_KEYS_TO_SAVE = [
     "prev_final_selected_vehicle",
     "dispatched_1t", "dispatched_2_5t", "dispatched_3_5t", "dispatched_5t",
     "gdrive_image_files"
+    # Item keys (qty_...) are added dynamically below
 ]
 
-# --- Session State Initialization --- (Keep as before)
+
+# --- Session State Initialization ---
 def initialize_session_state(update_basket_callback):
-    # ... (Initialization logic remains the same) ...
+    """세션 상태 변수들 초기화"""
     try: kst = pytz.timezone("Asia/Seoul"); default_date = datetime.now(kst).date()
     except Exception: default_date = datetime.now().date()
+
     defaults = {
+        # ... (all previous defaults remain the same) ...
         "base_move_type": MOVE_TYPE_OPTIONS[0],
         "is_storage_move": False, "storage_type": data.DEFAULT_STORAGE_TYPE,
         "apply_long_distance": False, "customer_name": "", "customer_phone": "",
@@ -59,13 +64,17 @@ def initialize_session_state(update_basket_callback):
         "gdrive_selected_file_id": None,
         "base_move_type_widget_tab1": MOVE_TYPE_OPTIONS[0],
         "base_move_type_widget_tab3": MOVE_TYPE_OPTIONS[0],
-        "uploaded_images": [],
+        "uploaded_images": None, # Use None as default for file uploader
         "gdrive_image_files": [],
         "loaded_images": {},
+        "file_uploader_key_counter": 0 # <<< Added counter for dynamic key
     }
     for key, value in defaults.items():
         if key not in st.session_state:
             st.session_state[key] = value
+
+    # (Rest of the initialization logic remains the same)
+    # ... (sync widget states, type conversion, dynamic item keys) ...
     if 'base_move_type' not in st.session_state:
          st.session_state.base_move_type = defaults['base_move_type']
     if st.session_state.base_move_type_widget_tab1 != st.session_state.base_move_type:
@@ -112,7 +121,9 @@ def initialize_session_state(update_basket_callback):
     if 'prev_final_selected_vehicle' not in st.session_state:
         st.session_state['prev_final_selected_vehicle'] = st.session_state.get('final_selected_vehicle')
 
-# --- State Save/Load Helpers --- (prepare_state_for_save remains the same)
+
+# --- State Save/Load Helpers ---
+# (prepare_state_for_save remains the same as previous version)
 def prepare_state_for_save():
     """Prepares the current session state for saving (e.g., to JSON)."""
     state_to_save = {}
@@ -120,8 +131,10 @@ def prepare_state_for_save():
         'base_move_type_widget_tab1', 'base_move_type_widget_tab3',
         'gdrive_selected_filename_widget',
         'uploaded_images', 'loaded_images', 'pdf_data_customer',
-        'final_excel_data', 'gdrive_search_results', 'gdrive_file_options_map'
+        'final_excel_data', 'gdrive_search_results', 'gdrive_file_options_map',
+        'file_uploader_key_counter' # Exclude the counter itself
     }
+    # Use STATE_KEYS_TO_SAVE which now includes "gdrive_image_files"
     actual_keys_to_save = list(set(STATE_KEYS_TO_SAVE) - keys_to_exclude)
     for key in actual_keys_to_save:
         if key in st.session_state:
@@ -136,15 +149,14 @@ def prepare_state_for_save():
                  except Exception: print(f"Warning: Skipping non-serializable key '{key}' of type {type(value)} during save.")
     return state_to_save
 
-# --- Load State (UPDATED) ---
+
+# (load_state_from_data remains the same as previous version - no reset needed here)
 def load_state_from_data(loaded_data, update_basket_callback):
     """Loads state from a dictionary (e.g., loaded from JSON)."""
     if not isinstance(loaded_data, dict):
         st.error("잘못된 형식의 파일입니다 (딕셔너리가 아님).")
         return False
-
-    # Define defaults again for recovery during load
-    # ... (defaults_for_recovery dictionary remains the same as before) ...
+    # (Defaults dictionary remains the same)
     try: kst = pytz.timezone("Asia/Seoul"); default_date = datetime.now(kst).date()
     except Exception: default_date = datetime.now().date()
     defaults_for_recovery = {
@@ -165,12 +177,11 @@ def load_state_from_data(loaded_data, update_basket_callback):
     for key in dynamic_keys:
         if key not in defaults_for_recovery: defaults_for_recovery[key] = 0
 
-
-    # Clear previous runtime image data *that we manage* before loading new state
+    # Clear previous runtime image display data
     st.session_state.loaded_images = {}
-    # >>> REMOVED: st.session_state.uploaded_images = [] <<< Let the widget manage this key
+    # NO LONGER RESETTING: st.session_state.uploaded_images = []
 
-    # --- Load loop (remains the same as before) ---
+    # (Load loop remains the same as previous version)
     int_keys = ["storage_duration", "sky_hours_from", "sky_hours_final", "add_men", "add_women", "deposit_amount", "adjustment_amount", "regional_ladder_surcharge", "dispatched_1t", "dispatched_2_5t", "dispatched_3_5t", "dispatched_5t"]
     float_keys = ["waste_tons_input"]
     allow_negative_keys = ["adjustment_amount"]
@@ -209,7 +220,6 @@ def load_state_from_data(loaded_data, update_basket_callback):
                 default_val = defaults_for_recovery.get(key)
                 st.session_state[key] = default_val
                 print(f"Warning: Error loading key '{key}' (Value: {original_value}, Type: {type(original_value)}). Error: {e}. Used default: {default_val}")
-    # --- End Load loop ---
 
     if load_error_count > 0:
         st.warning(f"일부 항목({load_error_count}개) 로딩 중 오류가 발생하여 기본값으로 설정되었거나 무시되었습니다.")
