@@ -1,4 +1,4 @@
-# ui_tab1.py (Defer reading file_uploader state until after form submission)
+# ui_tab1.py (Removed key from file_uploader)
 import streamlit as st
 from datetime import datetime, date
 import pytz
@@ -33,13 +33,12 @@ def render_tab1():
         col_load, col_save = st.columns(2)
 
         # --- Load Section ---
-        # (Load section remains the same)
+        # (Load section remains the same as previous version)
         with col_load:
             st.markdown("**견적 불러오기**")
             search_term = st.text_input("JSON 검색어 (날짜 YYMMDD 또는 번호 XXXX)", key="gdrive_search_term", help="파일 이름 일부 입력 후 검색")
             if st.button("🔍 견적 검색"):
-                st.session_state.loaded_images = {}
-                st.session_state.gdrive_image_files = []
+                st.session_state.loaded_images = {}; st.session_state.gdrive_image_files = []
                 search_term_strip = search_term.strip()
                 if search_term_strip:
                     with st.spinner("🔄 Google Drive에서 JSON 검색 중..."): results = gdrive.find_files_by_name_contains(search_term_strip, mime_types="application/json")
@@ -90,7 +89,7 @@ def render_tab1():
                     # else: Error handled in load_json_file
 
 
-        # --- Save Section (With st.form, deferred state read) ---
+        # --- Save Section (Removed key from file_uploader) ---
         with col_save:
             st.markdown("**현재 견적 저장**")
             # --- Start Form ---
@@ -104,25 +103,19 @@ def render_tab1():
                 st.caption(f"JSON 파일명 형식: `{example_json_fname}`")
                 st.caption(f"사진 파일명 형식: `{quote_base_name}_사진1.png` 등")
 
-                # --- File uploader (No assignment here) ---
-                # Just render the widget, use the key to access state later
-                st.file_uploader( # Line 114 (approx) <<< No assignment to variable
+                # --- File uploader (key parameter REMOVED) ---
+                # Line 114 (approx)
+                uploaded_image_files_in_form = st.file_uploader(
                     "사진 첨부 (최대 5장):",
                     accept_multiple_files=True,
-                    type=['png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp'],
-                    key='uploaded_images' # Static key
+                    type=['png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp']
+                    # REMOVED: key='uploaded_images'
                 )
-                # ------------------------------------------
+                # --------------------------------------------
 
-                # --- Check and Warn (Read from session state directly) ---
-                # This check now happens on every render inside the form definition
-                # It might be better placed inside the 'if submitted:' block if
-                # you only want the warning after trying to save.
-                # Let's keep it here for immediate feedback.
-                uploaded_files_check = st.session_state.get('uploaded_images', []) or []
-                if uploaded_files_check and len(uploaded_files_check) > 5:
+                # Warning if more than 5 files are selected (using the local variable)
+                if uploaded_image_files_in_form and len(uploaded_image_files_in_form) > 5:
                     st.warning("⚠️ 사진은 최대 5장까지만 첨부 및 저장됩니다. 5장을 초과한 파일은 저장되지 않습니다.", icon="⚠️")
-                # --------------------------------------------------------
 
                 st.caption("JSON(견적 데이터) 파일이 덮어쓰기됩니다. 사진은 매번 새로 업로드됩니다.")
 
@@ -131,35 +124,24 @@ def render_tab1():
 
                 # Logic runs ONLY when form submitted
                 if submitted:
-                    # --- Read file uploader state HERE ---
-                    current_uploaded_files = st.session_state.get('uploaded_images', []) or []
-                    # -------------------------------------
+                    # --- Use the local variable holding the uploader's return value ---
+                    current_uploaded_files = uploaded_image_files_in_form or []
+                    # -----------------------------------------------------------------
 
                     # Apply 5-file limit
                     if len(current_uploaded_files) > 5:
-                        # Warning moved here might be less intrusive
                         st.warning("5장을 초과한 이미지는 제외하고 저장합니다.", icon="⚠️")
-                    files_to_upload = current_uploaded_files[:5] # Take only the first 5 files
+                    files_to_upload = current_uploaded_files[:5]
 
-                    # (Validation)
-                    customer_phone = st.session_state.get('customer_phone', '')
-                    phone_part = utils.extract_phone_number_part(customer_phone, length=4)
-                    if phone_part == "번호없음" or not customer_phone.strip():
-                        st.error("⚠️ 저장 실패: 고객 전화번호(뒤 4자리 포함)를 먼저 입력해주세요.")
+                    # (Validation, Filename setup, Upload loops, JSON Save remain the same)
+                    customer_phone = st.session_state.get('customer_phone', ''); phone_part = utils.extract_phone_number_part(customer_phone, length=4)
+                    if phone_part == "번호없음" or not customer_phone.strip(): st.error("⚠️ 저장 실패: 고객 전화번호(뒤 4자리 포함)를 먼저 입력해주세요.")
                     else:
-                        # (Filename setup)
                         try: kst_save = pytz.timezone("Asia/Seoul"); now_save = datetime.now(kst_save)
                         except: now_save = datetime.now()
-                        date_str = now_save.strftime('%y%m%d')
-                        base_save_name = f"{date_str}-{phone_part}"
-                        json_filename = f"{base_save_name}.json"
-
-                        # (Image Upload Loop - Using limited list)
-                        saved_image_names = []
-                        num_images_to_upload = len(files_to_upload)
-                        img_upload_bar = None
-                        if num_images_to_upload > 0:
-                             img_upload_bar = st.progress(0, text=f"🖼️ 이미지 업로드 중... (0/{num_images_to_upload})")
+                        date_str = now_save.strftime('%y%m%d'); base_save_name = f"{date_str}-{phone_part}"; json_filename = f"{base_save_name}.json"
+                        saved_image_names = []; num_images_to_upload = len(files_to_upload); img_upload_bar = None
+                        if num_images_to_upload > 0: img_upload_bar = st.progress(0, text=f"🖼️ 이미지 업로드 중... (0/{num_images_to_upload})")
                         upload_errors = False
                         for i, uploaded_file in enumerate(files_to_upload):
                             original_filename = uploaded_file.name; _, extension = os.path.splitext(original_filename)
@@ -174,10 +156,7 @@ def render_tab1():
                         if img_upload_bar: img_upload_bar.empty()
                         if not upload_errors and num_images_to_upload > 0: st.success(f"✅ 이미지 {num_images_to_upload}개 업로드 완료.")
                         elif upload_errors: st.warning("⚠️ 일부 이미지 업로드에 실패했습니다.")
-
-                        # (JSON Save)
-                        st.session_state.gdrive_image_files = saved_image_names
-                        state_data_to_save = prepare_state_for_save()
+                        st.session_state.gdrive_image_files = saved_image_names; state_data_to_save = prepare_state_for_save()
                         try:
                             with st.spinner(f"🔄 '{json_filename}' 견적 데이터 저장 중..."): save_json_result = gdrive.save_json_file(json_filename, state_data_to_save)
                             if save_json_result and save_json_result.get('id'): st.success(f"✅ '{json_filename}' 저장/업데이트 완료.")
@@ -199,23 +178,18 @@ def render_tab1():
     with col_opts2: st.checkbox("🛣️ 장거리 이사 적용", key="apply_long_distance")
     col1, col2 = st.columns(2)
     with col1:
-        st.text_input("👤 고객명", key="customer_name")
-        st.text_input("📍 출발지 주소", key="from_location")
+        st.text_input("👤 고객명", key="customer_name"); st.text_input("📍 출발지 주소", key="from_location")
         if st.session_state.get('apply_long_distance'): st.selectbox("🛣️ 장거리 구간 선택", data.long_distance_options, key="long_distance_selector")
-        st.text_input("🔼 출발지 층수", key="from_floor", placeholder="예: 3, B1, -1")
-        st.selectbox("🛠️ 출발지 작업 방법", data.METHOD_OPTIONS, key="from_method", help="사다리차, 승강기, 계단, 스카이 중 선택")
+        st.text_input("🔼 출발지 층수", key="from_floor", placeholder="예: 3, B1, -1"); st.selectbox("🛠️ 출발지 작업 방법", data.METHOD_OPTIONS, key="from_method", help="사다리차, 승강기, 계단, 스카이 중 선택")
     with col2:
-        st.text_input("📞 전화번호", key="customer_phone", placeholder="01012345678")
-        st.text_input("📍 도착지 주소", key="to_location", placeholder="이사 도착지 상세 주소")
-        st.text_input("🔽 도착지 층수", key="to_floor", placeholder="예: 5, B2, -2")
-        st.selectbox("🛠️ 도착지 작업 방법", data.METHOD_OPTIONS, key="to_method", help="사다리차, 승강기, 계단, 스카이 중 선택")
+        st.text_input("📞 전화번호", key="customer_phone", placeholder="01012345678"); st.text_input("📍 도착지 주소", key="to_location", placeholder="이사 도착지 상세 주소")
+        st.text_input("🔽 도착지 층수", key="to_floor", placeholder="예: 5, B2, -2"); st.selectbox("🛠️ 도착지 작업 방법", data.METHOD_OPTIONS, key="to_method", help="사다리차, 승강기, 계단, 스카이 중 선택")
         current_moving_date_val = st.session_state.get('moving_date')
         if not isinstance(current_moving_date_val, date):
              try: kst_def = pytz.timezone("Asia/Seoul"); default_date_def = datetime.now(kst_def).date()
              except Exception: default_date_def = datetime.now().date()
              st.session_state.moving_date = default_date_def
-        st.date_input("🗓️ 이사 예정일 (출발일)", key="moving_date")
-        st.caption(f"⏱️ 견적 생성일: {utils.get_current_kst_time_str()}")
+        st.date_input("🗓️ 이사 예정일 (출발일)", key="moving_date"); st.caption(f"⏱️ 견적 생성일: {utils.get_current_kst_time_str()}")
     st.divider()
 
     # --- Display Loaded Images ---
