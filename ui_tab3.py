@@ -1,37 +1,43 @@
-# ui_tab3.py (Summary format updated - Final Request Applied, Address lines added)
+# ui_tab3.py (Added Email Sending Button and Logic)
 import streamlit as st
 import pandas as pd
 import io
 import pytz
-from datetime import datetime, date # date 추가
-import traceback # Keep for error handling
+from datetime import datetime, date
+import traceback
 
 # Import necessary custom modules
 try:
     import data
     import utils
     import calculations
-    import pdf_generator # Needed for generate_excel (used in summary) and generate_pdf
-    import excel_filler # Needed for the final excel generation
-    # Import MOVE_TYPE_OPTIONS from state_manager
+    import pdf_generator
+    import excel_filler
     from state_manager import MOVE_TYPE_OPTIONS
-    # Import callbacks needed in this tab
     from callbacks import sync_move_type, update_basket_quantities
+    # --- !!! email_utils 임포트 추가 !!! ---
+    import email_utils # Assumes email_utils.py exists
 except ImportError as ie:
-    st.error(f"UI Tab 3: 필수 모듈 로딩 실패 - {ie}")
-    st.stop()
+    # email_utils 로드 실패 시 처리
+    if 'email_utils' in str(ie):
+         st.warning(f"UI Tab 3: 이메일 발송 모듈(email_utils.py) 로딩 실패 - {ie}. 이메일 발송 기능 비활성화.")
+         email_utils = None # email_utils 없음을 명시
+    else:
+         st.error(f"UI Tab 3: 필수 모듈 로딩 실패 - {ie}")
+         st.stop() # 다른 필수 모듈 실패 시 중단
 except Exception as e:
     st.error(f"UI Tab 3: 모듈 로딩 중 오류 발생 - {e}")
     traceback.print_exc()
-    st.stop()
-
+    email_utils = None # 예외 발생 시 비활성화
+    # st.stop() # 다른 기능은 계속 작동하도록 주석 처리 가능
 
 def render_tab3():
-    """Renders the UI for Tab 3: Costs, Options, and Downloads."""
+    """Renders the UI for Tab 3: Costs, Options, Downloads, and Email Sending."""
 
     st.header("💰 계산 및 옵션 ")
 
     # --- Move Type Selection (Tab 3) ---
+    # ... (기존 코드와 동일) ...
     st.subheader("🏢 이사 유형 확인/변경")
     current_move_type = st.session_state.get('base_move_type')
     current_index_tab3 = 0 # Default index
@@ -59,6 +65,7 @@ def render_tab3():
     st.divider()
 
     # --- Vehicle Selection ---
+    # ... (기존 코드와 동일) ...
     with st.container(border=True):
         st.subheader("🚚 차량 선택")
         col_v1_widget, col_v2_widget = st.columns([1, 2])
@@ -112,7 +119,8 @@ def render_tab3():
                        if spec_manual: st.caption(f"선택차량 최대 용량: {spec_manual.get('capacity', 'N/A')}m³, {spec_manual.get('weight_capacity', 'N/A'):,}kg"); st.caption(f"현재 이사짐 예상: {st.session_state.get('total_volume',0.0):.2f}m³, {st.session_state.get('total_weight',0.0):.2f}kg")
     st.divider()
 
-    # --- Work Conditions & Options (Corrected structure) ---
+    # --- Work Conditions & Options ---
+    # ... (기존 코드와 동일) ...
     with st.container(border=True):
         st.subheader("🛠️ 작업 조건 및 추가 옵션"); sky_from = st.session_state.get('from_method') == "스카이 🏗️"; sky_to = st.session_state.get('to_method') == "스카이 🏗️"
         if sky_from or sky_to:
@@ -145,12 +153,12 @@ def render_tab3():
         date_options = ["이사많은날 🏠", "손없는날 ✋", "월말 📅", "공휴일 🎉", "금요일 📅"]
         date_keys = [f"date_opt_{i}_widget" for i in range(len(date_options))]
         cols_date = st.columns(len(date_options))
-        # Correct loop structure
         for i, option in enumerate(date_options):
             with cols_date[i]:
                 st.checkbox(option, key=date_keys[i])
 
     # --- Cost Adjustment & Deposit ---
+    # ... (기존 코드와 동일) ...
     with st.container(border=True):
         st.subheader("💰 비용 조정 및 계약금"); col_adj1, col_adj2, col_adj3 = st.columns(3)
         with col_adj1: st.number_input( "📝 계약금", min_value=0, step=10000, key="deposit_amount", format="%d", help="고객에게 받을 계약금 입력" )
@@ -159,6 +167,7 @@ def render_tab3():
     st.divider()
 
     # --- Final Quote Results ---
+    # ... (비용 계산 및 표시 부분 기존과 동일) ...
     st.header("💵 최종 견적 결과")
     final_selected_vehicle_calc = st.session_state.get('final_selected_vehicle')
     if final_selected_vehicle_calc:
@@ -178,7 +187,9 @@ def render_tab3():
         special_notes_display = st.session_state.get('special_notes')
         if special_notes_display and special_notes_display.strip(): st.subheader("📝 고객요구사항"); st.info(special_notes_display)
 
-        # --- Move Info Summary (UPDATED FORMAT - Final Request Applied) ---
+
+        # --- Move Info Summary ---
+        # ... (요약 정보 생성 및 표시 부분 기존과 동일) ...
         st.subheader("📋 이사 정보 요약")
         summary_generated = False
         try:
@@ -192,106 +203,46 @@ def render_tab3():
                     df_info = xls.parse("견적 정보", header=None); df_cost = xls.parse("비용 내역 및 요약", header=None)
                     info_dict = dict(zip(df_info[0].astype(str), df_info[1].astype(str))) if not df_info.empty and len(df_info.columns) > 1 else {}
 
-                    # --- vvv UPDATED HELPER FUNCTIONS for COST FORMATTING (만원 단위 숫자만) vvv ---
+                    # ... (요약 포맷팅 헬퍼 함수들 - 기존과 동일) ...
                     def format_money_manwon_unit(amount):
-                        """Formats amount in 10,000s (manwon) without the unit."""
-                        try:
-                            amount_str = str(amount).replace(",", "").split()[0]
-                            amount_float = float(amount_str)
-                            amount_int = int(amount_float)
-                            if amount_int == 0:
-                                return "0"
-                            # Divide by 10000 and format as integer string
-                            manwon_value = amount_int // 10000
-                            return f"{manwon_value}" # Return number string in 만원 scale
-                        except (ValueError, TypeError, IndexError):
-                            return "금액오류"
-
+                        try: amount_str = str(amount).replace(",", "").split()[0]; amount_float = float(amount_str); amount_int = int(amount_float); return "0" if amount_int == 0 else f"{amount_int // 10000}"
+                        except (ValueError, TypeError, IndexError): return "금액오류"
                     def get_cost_abbr_manwon_unit(kw, abbr, df):
-                        """Gets cost abbreviation using the new manwon formatting."""
                         if df.empty or len(df.columns) < 2: return f"{abbr} 정보 없음"
                         for i in range(len(df)):
-                            if pd.notna(df.iloc[i, 0]) and str(df.iloc[i, 0]).strip().startswith(kw):
-                                formatted_amount = format_money_manwon_unit(df.iloc[i, 1])
-                                return f"{abbr} {formatted_amount}" # 예: "계 2" 또는 "잔 243"
+                            if pd.notna(df.iloc[i, 0]) and str(df.iloc[i, 0]).strip().startswith(kw): return f"{abbr} {format_money_manwon_unit(df.iloc[i, 1])}"
                         return f"{abbr} 정보 없음"
-                    # --- ^^^ UPDATED HELPER FUNCTIONS ^^^ ---
-
                     def format_address(addr): return str(addr).strip() if isinstance(addr, str) and addr.strip() and addr.lower() != 'nan' else ""
-                    def format_method(m):
-                        m = str(m).strip(); return "사" if "사다리차" in m else "승" if "승강기" in m else "계" if "계단" in m else "스카이" if "스카이" in m else "?"
+                    def format_method(m): m = str(m).strip(); return "사" if "사다리차" in m else "승" if "승강기" in m else "계" if "계단" in m else "스카이" if "스카이" in m else "?"
 
                     from_addr = format_address(info_dict.get("출발지", st.session_state.get('from_location',''))); to_addr = format_address(info_dict.get("도착지", st.session_state.get('to_location','')))
                     phone = info_dict.get("고객 연락처", st.session_state.get('customer_phone','')); vehicle_type = final_selected_vehicle_calc
                     note = format_address(info_dict.get("고객요구사항", st.session_state.get('special_notes','')))
                     p_info = personnel_info if isinstance(personnel_info, dict) else {}; men = p_info.get('final_men', 0); women = p_info.get('final_women', 0); ppl = f"{men}+{women}" if women > 0 else f"{men}"
                     b_name = "포장 자재 📦"; move_t = st.session_state.base_move_type
-                    # Ensure quantity keys use correct format (adjust if your keys differ)
-                    # Assuming keys like "qty_이사유형_포장 자재 📦_바구니" etc.
-                    q_b = int(st.session_state.get(f"qty_{move_t}_{b_name}_바구니", 0))
-                    q_m = int(st.session_state.get(f"qty_{move_t}_{b_name}_중박스", 0))
-                    # Check for both '옷바구니' and '중자바구니' as they might be used interchangeably or both exist
-                    q_c = int(st.session_state.get(f"qty_{move_t}_{b_name}_옷바구니", st.session_state.get(f"qty_{move_t}_{b_name}_중자바구니", 0))) # 옷바구니 우선, 없으면 중자바구니
-                    q_k = int(st.session_state.get(f"qty_{move_t}_{b_name}_책바구니", 0))
+                    q_b = int(st.session_state.get(f"qty_{move_t}_{b_name}_바구니", 0)); q_m = int(st.session_state.get(f"qty_{move_t}_{b_name}_중박스", 0)); q_c = int(st.session_state.get(f"qty_{move_t}_{b_name}_옷바구니", st.session_state.get(f"qty_{move_t}_{b_name}_중자바구니", 0))); q_k = int(st.session_state.get(f"qty_{move_t}_{b_name}_책바구니", 0))
                     bask_parts = [];
                     if q_b > 0: bask_parts.append(f"바{q_b}")
                     if q_m > 0: bask_parts.append(f"중{q_m}")
-                    if q_c > 0: bask_parts.append(f"옷{q_c}") # '옷'으로 통일
+                    if q_c > 0: bask_parts.append(f"옷{q_c}")
                     if q_k > 0: bask_parts.append(f"책{q_k}")
                     bask = " ".join(bask_parts)
-                    cont_fee_str = get_cost_abbr_manwon_unit("계약금 (-)", "계", df_cost) # Use 만원 format
-                    rem_fee_str = get_cost_abbr_manwon_unit("잔금 (VAT 별도)", "잔", df_cost) # Use 만원 format
+                    cont_fee_str = get_cost_abbr_manwon_unit("계약금 (-)", "계", df_cost); rem_fee_str = get_cost_abbr_manwon_unit("잔금 (VAT 별도)", "잔", df_cost)
                     w_from = format_method(info_dict.get("출발 작업", st.session_state.get('from_method',''))); w_to = format_method(info_dict.get("도착 작업", st.session_state.get('to_method',''))); work = f"출{w_from}도{w_to}"
 
-                    # --- vvv Construct and display summary (Applying FINAL format with address lines) vvv ---
-                    # Line 1: Full Addresses - Tonnage
-                    addr_separator = " - " if from_addr and to_addr else " "
-                    first_line = f"{from_addr}{addr_separator}{to_addr} {vehicle_type}"
-                    st.text(first_line.strip())
-                    st.text("") # 빈 줄 추가
-
-                    # Line 2: Phone
-                    if phone and phone != '-':
-                        st.text(phone)
-                        st.text("") # 빈 줄 추가
-
-                    # --- vvv INSERTED/MODIFIED BLOCK vvv ---
-                    # Line 3: Departure Address (if exists)
-                    if from_addr:
-                        st.text(from_addr)
-                        st.text("") # 주소 뒤에 빈 줄 추가
-
-                    # Line 4: Destination Address (if exists)
-                    if to_addr:
-                        st.text(to_addr)
-                        st.text("") # 주소 뒤에 빈 줄 추가
-                    # --- ^^^ INSERTED/MODIFIED BLOCK ^^^ ---
-
-                    # Line 5: Vehicle Tonnage + Personnel Count
-                    personnel_line = f"{vehicle_type} {ppl}"
-                    st.text(personnel_line)
-                    st.text("") # 빈 줄 추가
-
-                    # Line 6: Baskets
-                    if bask:
-                        st.text(bask)
-                        st.text("") # 빈 줄 추가
-
-                    # Line 7: Work method
-                    st.text(work)
-                    st.text("") # 빈 줄 추가
-
-                    # Line 8: Costs (Using new strings - manwon scale, no unit)
-                    st.text(f"{cont_fee_str} / {rem_fee_str}")
-                    st.text("") # 빈 줄 추가
-
-                    # Line 9 onwards: Special Notes
+                    # --- 요약 정보 출력 (주소 줄 포함된 버전) ---
+                    addr_separator = " - " if from_addr and to_addr else " "; first_line = f"{from_addr}{addr_separator}{to_addr} {vehicle_type}"; st.text(first_line.strip()); st.text("")
+                    if phone and phone != '-': st.text(phone); st.text("")
+                    if from_addr: st.text(from_addr); st.text("")
+                    if to_addr: st.text(to_addr); st.text("")
+                    personnel_line = f"{vehicle_type} {ppl}"; st.text(personnel_line); st.text("")
+                    if bask: st.text(bask); st.text("")
+                    st.text(work); st.text("")
+                    st.text(f"{cont_fee_str} / {rem_fee_str}"); st.text("")
                     if note:
                         notes_list = [n.strip() for n in note.split('.') if n.strip()]
-                        for note_line in notes_list:
-                            st.text(note_line)
-                            # 각 요구사항 줄 뒤에는 빈 줄을 추가하지 않음 (기존 방식 유지)
-                    # --- ^^^ End construct and display ^^^ ---
+                        for note_line in notes_list: st.text(note_line)
+                    # --- 요약 출력 끝 ---
 
                     summary_generated = True
                 else: st.warning("⚠️ 요약 정보 생성 실패 (필수 Excel 시트 누락)")
@@ -300,41 +251,117 @@ def render_tab3():
         if not summary_generated: st.info("ℹ️ 요약 정보를 표시할 수 없습니다.")
         st.divider()
 
-        # --- Download Section ---
-        # (Download section remains unchanged)
-        st.subheader("📄 견적서 파일 다운로드"); has_cost_error = any(isinstance(item, (list, tuple)) and len(item)>0 and str(item[0]) == "오류" for item in cost_items) if cost_items else False
+
+        # --- !!! Download and Send Section 수정됨 !!! ---
+        st.subheader("📄 견적서 파일 다운로드 및 발송")
+        has_cost_error = any(isinstance(item, (list, tuple)) and len(item)>0 and str(item[0]) == "오류" for item in cost_items) if cost_items else False
         can_gen_pdf = bool(final_selected_vehicle_calc) and not has_cost_error; can_gen_final_excel = bool(final_selected_vehicle_calc)
+        # 컬럼 3개 사용
         cols_dl = st.columns(3)
+
         with cols_dl[0]:
+            # --- ① Final 견적서 (Excel) ---
             st.markdown("**① Final 견적서 (Excel)**");
             if can_gen_final_excel:
                 if st.button("📄 생성: Final 견적서"):
                     latest_total_cost_fe, latest_cost_items_fe, latest_personnel_info_fe = calculations.calculate_total_moving_cost(st.session_state.to_dict())
                     filled_excel_data = excel_filler.fill_final_excel_template(st.session_state.to_dict(), latest_cost_items_fe, latest_total_cost_fe, latest_personnel_info_fe)
-                    if filled_excel_data: st.session_state['final_excel_data'] = filled_excel_data; st.success("✅ 생성 완료!")
+                    if filled_excel_data:
+                        st.session_state['final_excel_data'] = filled_excel_data; st.success("✅ Excel 생성 완료!")
                     else:
                         if 'final_excel_data' in st.session_state: del st.session_state['final_excel_data']
-                        st.error("❌ 생성 실패.")
+                        st.error("❌ Excel 생성 실패.")
                 if st.session_state.get('final_excel_data'):
                     ph_part = utils.extract_phone_number_part(st.session_state.get('customer_phone', ''), 4, "0000"); now_str = datetime.now(pytz.timezone("Asia/Seoul")).strftime('%y%m%d') if pytz else datetime.now().strftime('%y%m%d')
                     fname = f"{ph_part}_{now_str}_Final견적서.xlsx"; st.download_button("📥 다운로드 (Excel)", st.session_state['final_excel_data'], fname, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", key='dl_final_excel')
                 elif not st.session_state.get('final_excel_data'): st.caption("생성 버튼 클릭")
             else: st.caption("Excel 생성 불가 (차량 미선택)")
+
         with cols_dl[1]:
+            # --- ② 고객용 견적서 (PDF) ---
             st.markdown("**② 고객용 견적서 (PDF)**");
+            pdf_generated = False # PDF 생성 여부 플래그 초기화
+            pdf_data_in_state = st.session_state.get('pdf_data_customer')
+
             if can_gen_pdf:
+                # PDF 생성 버튼
                 if st.button("📄 생성: PDF 견적서"):
                     latest_total_cost_pdf, latest_cost_items_pdf, latest_personnel_info_pdf = calculations.calculate_total_moving_cost(st.session_state.to_dict())
                     pdf_bytes = pdf_generator.generate_pdf(st.session_state.to_dict(), latest_cost_items_pdf, latest_total_cost_pdf, latest_personnel_info_pdf)
                     st.session_state['pdf_data_customer'] = pdf_bytes
-                    if pdf_bytes: st.success("✅ 생성 완료!")
-                    else: st.error("❌ 생성 실패.")
-                if st.session_state.get('pdf_data_customer'):
-                    ph_part = utils.extract_phone_number_part(st.session_state.get('customer_phone', ''), 4, "0000"); now_str = datetime.now(pytz.timezone("Asia/Seoul")).strftime('%y%m%d_%H%M') if pytz else datetime.now().strftime('%y%m%d_%H%M')
-                    fname = f"{ph_part}_{now_str}_이삿날견적서.pdf"; st.download_button("📥 다운로드 (PDF)", st.session_state['pdf_data_customer'], fname, 'application/pdf', key='dl_pdf')
-                elif not st.session_state.get('pdf_data_customer'): st.caption("생성 버튼 클릭")
+                    if pdf_bytes:
+                        st.success("✅ PDF 생성 완료!")
+                        pdf_generated = True # 생성 성공 시 플래그 설정
+                        pdf_data_in_state = pdf_bytes # 상태 업데이트 반영
+                    else:
+                        st.error("❌ PDF 생성 실패.")
+                        if 'pdf_data_customer' in st.session_state: del st.session_state['pdf_data_customer'] # 실패 시 상태 제거
+
+                # PDF 다운로드 버튼 (PDF 데이터가 상태에 있을 때만 표시)
+                if pdf_data_in_state:
+                     pdf_generated = True # 이미 생성된 경우 플래그 설정
+                     ph_part = utils.extract_phone_number_part(st.session_state.get('customer_phone', ''), 4, "0000")
+                     now_str = datetime.now(pytz.timezone("Asia/Seoul")).strftime('%y%m%d_%H%M') if pytz else datetime.now().strftime('%y%m%d_%H%M')
+                     fname = f"{ph_part}_{now_str}_이삿날견적서.pdf";
+                     st.download_button("📥 다운로드 (PDF)", pdf_data_in_state, fname, 'application/pdf', key='dl_pdf')
+                # PDF 데이터 없고 생성 버튼 아직 안 눌렀으면
+                elif not pdf_data_in_state and not st.session_state.get('pdf_generation_attempted', False): # Attempt flag can prevent message after failed attempt
+                      st.caption("PDF 생성 버튼 클릭")
+
             else: st.caption("PDF 생성 불가 (차량 미선택/비용 오류)")
-        with cols_dl[2]: st.empty()
+
+        with cols_dl[2]:
+            # --- ③ 견적서 이메일 발송 ---
+            st.markdown("**③ 이메일 발송 (PDF 첨부)**")
+            # PDF가 생성되었고, email_utils가 로드되었을 때만 버튼 활성화
+            email_button_disabled = not (pdf_generated and email_utils and hasattr(email_utils, 'send_quote_email'))
+
+            if st.button("📧 이메일로 견적서 발송", disabled=email_button_disabled, key="send_email_btn"):
+                customer_email = st.session_state.get('customer_email', '').strip()
+                customer_name = st.session_state.get('customer_name', '고객') # 이름 없으면 '고객'
+                pdf_bytes_to_send = st.session_state.get('pdf_data_customer') # 이미 생성된 PDF 데이터 사용
+
+                if not customer_email:
+                    st.warning("⚠️ 고객 이메일 주소가 입력되지 않았습니다. (고객 정보 탭에서 입력)")
+                elif not pdf_bytes_to_send:
+                     st.warning("⚠️ PDF 견적서가 생성되지 않았습니다. 먼저 PDF 생성 버튼을 클릭하세요.")
+                else:
+                    # 이메일 제목 및 본문 구성
+                    email_subject = f"[이삿날] {customer_name}님 이사 견적서입니다."
+                    email_body = f"""안녕하세요, {customer_name}님.
+
+요청하신 이사 견적서를 첨부하여 보내드립니다.
+자세한 내용은 첨부된 PDF 파일을 확인해 주시기 바랍니다.
+
+궁금한 점이 있으시면 언제든지 연락주세요.
+
+감사합니다.
+이삿날 드림
+"""
+                    # 파일명 생성 (다운로드 버튼과 유사하게)
+                    ph_part = utils.extract_phone_number_part(st.session_state.get('customer_phone', ''), 4, "0000");
+                    now_str = datetime.now(pytz.timezone("Asia/Seoul")).strftime('%y%m%d_%H%M') if pytz else datetime.now().strftime('%y%m%d_%H%M')
+                    pdf_fname_email = f"{ph_part}_{now_str}_이삿날견적서.pdf"
+
+                    with st.spinner("📧 이메일 발송 중..."):
+                         # email_utils.py의 함수 호출
+                         send_success = email_utils.send_quote_email(
+                             customer_email, email_subject, email_body, pdf_bytes_to_send, pdf_fname_email
+                         )
+
+                    if send_success:
+                        st.success(f"✅ '{customer_email}' 주소로 견적서 이메일을 성공적으로 발송했습니다.")
+                    else:
+                        # 오류 메시지는 send_quote_email 함수 내에서 st.error로 표시됨
+                        st.warning("이메일 발송에 실패했습니다. 설정을 확인하거나 관리자에게 문의하세요.")
+
+            # 버튼 비활성화 사유 표시
+            elif not email_utils or not hasattr(email_utils, 'send_quote_email'):
+                 st.caption("이메일 기능 로드 실패")
+            elif not pdf_generated:
+                 st.caption("PDF 생성 후 발송 가능")
+            # (Email 주소 없을 때 별도 메시지 불필요 - 버튼 클릭 시 처리)
+
     else: # Vehicle not selected
         st.warning("⚠️ **차량을 먼저 선택해주세요.** 비용 계산, 요약 정보 표시 및 다운로드는 차량 선택 후 가능합니다.")
 
