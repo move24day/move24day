@@ -7,7 +7,7 @@ import streamlit as st # 오류 메시지 표시용 (선택적)
 # import math # 필요 시 사용
 
 # !!! 사용자 설정 필요: 실제 템플릿 파일 경로로 변경하세요 !!!
-TEMPLATE_FILE_PATH = 'final.xlsx'
+TEMPLATE_FILE_PATH = 'final_quote_template.xlsx'
 # !!! 사용자 설정 필요: 실제 작업할 시트 이름으로 변경하세요 !!!
 TARGET_SHEET_NAME = '견적서' # 예시 시트 이름
 
