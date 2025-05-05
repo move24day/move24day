@@ -30,7 +30,7 @@ def fill_final_excel_template(state_data, cost_items, total_cost, personnel_info
         try:
             wb = openpyxl.load_workbook(TEMPLATE_FILE_PATH)
             # 지정된 이름의 시트 가져오기
-            sheet = wb[TARGET_SHEET_NAME]
+            sheet = wb[SHEET1]
         except FileNotFoundError:
             error_msg = f"엑셀 템플릿 파일을 찾을 수 없습니다: '{TEMPLATE_FILE_PATH}'"
             st.error(error_msg)
