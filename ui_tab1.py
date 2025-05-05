@@ -1,4 +1,4 @@
-# ui_tab1.py (Using st.form, static key, max 5 images)
+# ui_tab1.py (st.form, static key, max 5 images - For Comparison)
 import streamlit as st
 from datetime import datetime, date
 import pytz
@@ -150,23 +150,34 @@ def render_tab1():
                         base_save_name = f"{date_str}-{phone_part}"
                         json_filename = f"{base_save_name}.json"
 
-                        # Image Upload Loop (Using the limited list)
+                        # --- Image Upload Loop (Using the limited list) --- # Line ~183 start
                         saved_image_names = []
                         num_images_to_upload = len(files_to_upload) # Use length of limited list
                         img_upload_bar = None
                         if num_images_to_upload > 0:
                              img_upload_bar = st.progress(0, text=f"🖼️ 이미지 업로드 중... (0/{num_images_to_upload})")
                         upload_errors = False
-                        for i, uploaded_file in enumerate(files_to_upload): # Iterate limited list
-                            original_filename = uploaded_file.name; _, extension = os.path.splitext(original_filename)
-                            drive_image_filename = f"{base_save_name}_사진{i+1}{extension}"
-                            with st.spinner(f"이미지 '{drive_image_filename}' 업로드 중..."):
-                                 image_bytes = uploaded_file.getvalue(); save_img_result = gdrive.save_image_file(drive_image_filename, image_bytes)
+                        # Iterate over the potentially sliced list
+                        for i, uploaded_file in enumerate(files_to_upload): # Line ~191
+                            original_filename = uploaded_file.name # Line ~192
+                            _, extension = os.path.splitext(original_filename) # Line ~192b <<< Check this line
+                            # --- vvv LINE 193 vvv ---
+                            drive_image_filename = f"{base_save_name}_사진{i+1}{extension}" # <<< CHECK THIS LINE VERY CAREFULLY
+                            # --- ^^^ LINE 193 ^^^ ---
+                            with st.spinner(f"이미지 '{drive_image_filename}' 업로드 중..."): # Line ~194
+                                 image_bytes = uploaded_file.getvalue()
+                                 save_img_result = gdrive.save_image_file(drive_image_filename, image_bytes)
                             if save_img_result and save_img_result.get('id'):
                                  saved_image_names.append(drive_image_filename)
-                                 if img_upload_bar: progress_val = (i + 1) / num_images_to_upload; img_upload_bar.progress(progress_val, text=f"🖼️ 이미지 업로드 중... ({i+1}/{num_images_to_upload})")
-                            else: st.error(f"❌ 이미지 '{original_filename}' 업로드 실패."); upload_errors = True
-                            time.sleep(0.1)
+                                 if img_upload_bar:
+                                     progress_val = (i + 1) / num_images_to_upload
+                                     img_upload_bar.progress(progress_val, text=f"🖼️ 이미지 업로드 중... ({i+1}/{num_images_to_upload})")
+                            else:
+                                 st.error(f"❌ 이미지 '{original_filename}' 업로드 실패.")
+                                 upload_errors = True
+                            time.sleep(0.1) # Keep small delay
+                        # --- End Image Upload Loop --- # Line ~202 end
+
                         if img_upload_bar: img_upload_bar.empty()
                         if not upload_errors and num_images_to_upload > 0: st.success(f"✅ 이미지 {num_images_to_upload}개 업로드 완료.")
                         elif upload_errors: st.warning("⚠️ 일부 이미지 업로드에 실패했습니다.")
@@ -175,8 +186,10 @@ def render_tab1():
                         st.session_state.gdrive_image_files = saved_image_names
                         state_data_to_save = prepare_state_for_save()
                         try:
-                            with st.spinner(f"🔄 '{json_filename}' 견적 데이터 저장 중..."): save_json_result = gdrive.save_json_file(json_filename, state_data_to_save)
-                            if save_json_result and save_json_result.get('id'): st.success(f"✅ '{json_filename}' 저장/업데이트 완료.")
+                            with st.spinner(f"🔄 '{json_filename}' 견적 데이터 저장 중..."):
+                                save_json_result = gdrive.save_json_file(json_filename, state_data_to_save)
+                            if save_json_result and save_json_result.get('id'):
+                                st.success(f"✅ '{json_filename}' 저장/업데이트 완료.")
                             else: st.error(f"❌ '{json_filename}' 저장 중 오류 발생.")
                         except TypeError as json_err: st.error(f"❌ 저장 실패: 데이터를 JSON으로 변환 중 오류 발생 - {json_err}")
                         except Exception as save_err: st.error(f"❌ '{json_filename}' 파일 저장 중 예외 발생: {save_err}")
