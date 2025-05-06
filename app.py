@@ -51,7 +51,7 @@ except Exception as e:
 # --- Main Application ---
 
 # Display Title
-st.markdown("<h1 style='text-align: center; color: #1E90FF;'>🚚 이삿날 스마트 견적 시스템 🚚</h1>", unsafe_allow_html=True)
+st.markdown("<h1 style='text-align: center; color: #1E90FF;'>🚚 이삿날 스마트 견적 🚚</h1>", unsafe_allow_html=True)
 st.write("")
 
 # Initialize session state (pass the callback reference)
