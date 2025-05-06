@@ -1,212 +1,330 @@
-# ui_tab1.py (Added try-except around the problematic file uploader)
+# ui_tab3.py (이미지 관련 코드 참조 제거)
 import streamlit as st
-from datetime import datetime, date
-import pytz
-import json
-import os
-import time
+import pandas as pd
 import traceback
-from streamlit.errors import StreamlitAPIException # Import specific exception
+import io # For BytesIO with file downloads
 
 # Import necessary custom modules
 try:
     import data
     import utils
-    import google_drive_helper as gdrive # Use alias
-    from state_manager import (
-        MOVE_TYPE_OPTIONS,
-        prepare_state_for_save,
-        load_state_from_data
-    )
-    import callbacks # Ensure callbacks module exists and has necessary functions
+    import calculations
+    import pdf_generator # For PDF and Summary Excel
+    import excel_filler # For Final Excel
+    import email_utils # For sending email
+    from state_manager import MOVE_TYPE_OPTIONS # Import options if needed
+    import callbacks # Import callbacks if needed for widget sync
 except ImportError as ie:
-    st.error(f"UI Tab 1: 필수 모듈 로딩 실패 - {ie}")
+    st.error(f"UI Tab 3: 필수 모듈 로딩 실패 - {ie}")
     st.stop()
 except Exception as e:
-    st.error(f"UI Tab 1: 모듈 로딩 중 오류 - {e}")
+    st.error(f"UI Tab 3: 모듈 로딩 중 오류 - {e}")
     st.stop()
 
+def render_tab3():
+    """Renders the UI for Tab 3: Costs and Output."""
 
-def render_tab1():
-    """Renders the UI for Tab 1: Customer Info and Google Drive."""
+    st.header("💰 견적 비용 계산 및 최종 확인")
+    st.caption("선택된 품목과 옵션을 바탕으로 예상 비용을 계산하고 견적서를 생성합니다.")
 
-    # === Google Drive Section ===
-    with st.container(border=True):
-        st.subheader("☁️ Google Drive 연동")
-        st.caption("Google Drive의 지정된 폴더에 견적(JSON) 및 사진 파일을 저장하고 불러옵니다.")
-        col_load, col_save = st.columns(2)
+    # --- Recalculate Costs Section ---
+    # Use a placeholder for cost calculation results if not yet calculated
+    calculated_total_cost = 0
+    calculated_cost_items = []
+    personnel_info = {}
 
-        # --- Load Section ---
-        with col_load:
-            # (Load Section Code - unchanged, omitted for brevity)
-            st.markdown("**견적 불러오기**"); search_term = st.text_input("JSON 검색어...", key="gdrive_search_term")
-            if st.button("🔍 견적 검색"):
-                st.session_state.loaded_images = {}; st.session_state.gdrive_image_files = []
-                search_term_strip = search_term.strip()
-                if search_term_strip:
-                    with st.spinner("..."): results = gdrive.find_files_by_name_contains(search_term_strip, mime_types="application/json")
-                    if results: st.session_state.gdrive_search_results = results; st.session_state.gdrive_file_options_map = {r['name']: r['id'] for r in results}; st.session_state.gdrive_selected_file_id = results[0].get('id'); st.session_state.gdrive_selected_filename = next((n for n,i in st.session_state.gdrive_file_options_map.items() if i==st.session_state.gdrive_selected_file_id), None); st.success(f"✅ {len(results)}개 검색 완료.")
-                    else: st.session_state.gdrive_search_results = []; st.session_state.gdrive_file_options_map = {}; st.session_state.gdrive_selected_file_id = None; st.session_state.gdrive_selected_filename = None; st.warning("⚠️ 해당 파일 없음.")
-                else: st.warning("⚠️ 검색어를 입력하세요.")
-            if st.session_state.get('gdrive_search_results'):
-                 file_options_display = list(st.session_state.gdrive_file_options_map.keys()); current_selection_index = 0
-                 if st.session_state.gdrive_selected_filename in file_options_display:
-                     try: current_selection_index = file_options_display.index(st.session_state.gdrive_selected_filename)
-                     except ValueError: current_selection_index = 0
-                 on_change_callback_gdrive = getattr(callbacks, 'update_selected_gdrive_id', None)
-                 st.selectbox("불러올 JSON 파일 선택:", file_options_display, key="gdrive_selected_filename_widget", index=current_selection_index, on_change=on_change_callback_gdrive)
-                 if st.session_state.gdrive_selected_filename and not st.session_state.gdrive_selected_file_id and on_change_callback_gdrive: on_change_callback_gdrive()
-            load_button_disabled = not bool(st.session_state.get('gdrive_selected_file_id'))
-            if st.button("📂 선택 견적 불러오기", disabled=load_button_disabled, key="load_gdrive_btn"):
-                json_file_id = st.session_state.gdrive_selected_file_id
-                if json_file_id:
-                    st.session_state.loaded_images = {}
-                    with st.spinner("..."): loaded_content = gdrive.load_json_file(json_file_id)
-                    if loaded_content:
-                        update_basket_callback_ref = getattr(callbacks, 'update_basket_quantities', None);
-                        if not update_basket_callback_ref: st.error("Basket callback 없음!"); update_basket_callback_ref = lambda: None
-                        load_success = load_state_from_data(loaded_content, update_basket_callback_ref)
-                        if load_success:
-                            st.success("✅ 로딩 완료."); # ... (Image loading logic) ...
-                            image_filenames_to_load = st.session_state.get("gdrive_image_files", [])
-                            if image_filenames_to_load:
-                                num_images=len(image_filenames_to_load); img_load_bar=st.progress(0, text=f"🖼️ 이미지 로딩 (0/{num_images})"); loaded_count=0
-                                for i, img_filename in enumerate(image_filenames_to_load):
-                                     img_file_id = None;
-                                     with st.spinner(f"이미지 '{img_filename}' 검색"): img_file_id = gdrive.find_file_id_by_exact_name(img_filename)
-                                     if img_file_id:
-                                         img_bytes = None;
-                                         with st.spinner(f"이미지 '{img_filename}' 다운로드"): img_bytes = gdrive.download_file_bytes(img_file_id)
-                                         if img_bytes: st.session_state.loaded_images[img_filename] = img_bytes; loaded_count += 1; progress_val = (i + 1) / num_images; img_load_bar.progress(progress_val, text=f"🖼️ 이미지 로딩 ({loaded_count}/{num_images})")
-                                         else: st.warning(f"⚠️ 이미지 '{img_filename}' 다운로드 실패.")
-                                     else: st.warning(f"⚠️ 이미지 파일 '{img_filename}' 못 찾음.")
-                                     time.sleep(0.1)
-                                img_load_bar.empty()
-                                if loaded_count > 0: st.success(f"✅ 이미지 {loaded_count}개 로딩 완료.")
-                                if loaded_count != num_images: st.warning(f"⚠️ {num_images - loaded_count}개 이미지 로딩 실패/못 찾음.")
-                    else: st.error("❌ JSON 파일 로딩 실패.")
-                # Removed explicit rerun
+    try:
+        # Perform cost calculation (this should already happen in app.py before rendering tabs,
+        # but we can recalculate here if needed, or just retrieve from state)
+        # Ensure calculations.py is robust against missing state keys if any were removed
+        calculated_total_cost, calculated_cost_items, personnel_info = calculations.calculate_total_moving_cost(st.session_state.to_dict())
+        st.session_state.calculated_total_cost = calculated_total_cost # Store in state if needed elsewhere
+        st.session_state.calculated_cost_items = calculated_cost_items
+        st.session_state.personnel_info = personnel_info
 
-        # --- Save Section ---
-        with col_save:
-            st.markdown("**현재 견적 저장**")
+    except Exception as e:
+        st.error(f"비용 계산 중 오류 발생: {e}")
+        traceback.print_exc()
+        st.warning("비용 계산에 실패하여 일부 기능이 제한될 수 있습니다.")
+        # Reset results on error
+        st.session_state.calculated_total_cost = 0
+        st.session_state.calculated_cost_items = []
+        st.session_state.personnel_info = {}
+        calculated_total_cost = 0
+        calculated_cost_items = []
+        personnel_info = {}
 
-            # --- Wrap File Uploader with try-except ---
-            uploader_rendered_successfully = False
-            try:
-                st.file_uploader(
-                    "사진 첨부:",
-                    accept_multiple_files=True,
-                    type=['png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp'],
-                    key="quote_image_uploader"  # <-- Keep Key Present
+    # --- Display Costs and Options ---
+    col_cost_details, col_options = st.columns([2, 1]) # Give more space to cost details
+
+    with col_cost_details:
+        st.subheader("📊 비용 상세 내역")
+        if calculated_cost_items:
+            cost_df = pd.DataFrame(calculated_cost_items, columns=["항목", "금액", "비고"])
+            # Format the '금액' column for display
+            cost_df['금액'] = cost_df['금액'].apply(lambda x: f"{int(x):,} 원" if pd.notna(x) else "0 원")
+            st.dataframe(cost_df, hide_index=True, use_container_width=True)
+        else:
+            st.info("계산된 비용 내역이 없습니다. 품목 및 옵션을 확인하세요.")
+
+        st.markdown("---")
+        st.subheader("💰 최종 예상 비용")
+        total_cost_str = f"{calculated_total_cost:,.0f} 원"
+        st.metric(label="총 견적 비용 (VAT 별도)", value=total_cost_str)
+
+        # Deposit and Balance Calculation
+        deposit_amount = st.session_state.get('deposit_amount', 0)
+        remaining_balance = calculated_total_cost - deposit_amount
+        deposit_str = f"{deposit_amount:,.0f} 원"
+        remaining_str = f"{remaining_balance:,.0f} 원"
+
+        col_dep, col_bal = st.columns(2)
+        with col_dep:
+            st.metric(label="계약금 (-)", value=deposit_str)
+        with col_bal:
+            st.metric(label="잔금 (VAT 별도)", value=remaining_str)
+
+
+    with col_options:
+        st.subheader("⚙️ 추가 옵션 및 조정")
+
+        # Sync move type widget if needed
+        move_type_options_tab3 = globals().get('MOVE_TYPE_OPTIONS')
+        sync_move_type_callback_ref = getattr(callbacks, 'sync_move_type', None)
+        if move_type_options_tab3:
+             try: current_index_tab3 = move_type_options_tab3.index(st.session_state.base_move_type)
+             except ValueError: current_index_tab3 = 0
+             st.radio( "기본 이사 유형 확인", options=move_type_options_tab3, index=current_index_tab3,
+                       key="base_move_type_widget_tab3", on_change=sync_move_type_callback_ref,
+                       args=("base_move_type_widget_tab3",) )
+        else: st.warning("이사 유형 옵션 로드 실패")
+
+        # Vehicle Selection
+        st.selectbox(
+            "차량 선택 방식",
+            ("자동 추천 차량 사용", "수동 선택"),
+            key="vehicle_select_radio",
+            on_change=callbacks.update_basket_quantities # Update baskets on change
+        )
+
+        rec_vehicle_tab3 = st.session_state.get('recommended_vehicle_auto')
+        vehicle_display = ""
+        if st.session_state.vehicle_select_radio == "자동 추천 차량 사용":
+            if rec_vehicle_tab3 and "초과" not in rec_vehicle_tab3:
+                vehicle_display = f"✅ 자동: **{rec_vehicle_tab3}**"
+                st.session_state.manual_vehicle_select_value = None # Clear manual selection
+            elif rec_vehicle_tab3 and "초과" in rec_vehicle_tab3:
+                vehicle_display = f"❌ 자동: **{rec_vehicle_tab3}**"
+                st.session_state.manual_vehicle_select_value = None # Clear manual selection
+            else:
+                vehicle_display = "ℹ️ 자동 추천 불가 (물량 확인)"
+                st.session_state.manual_vehicle_select_value = None # Clear manual selection
+            st.markdown(vehicle_display)
+        else: # Manual Selection
+            current_move_type_tab3 = st.session_state.get('base_move_type')
+            available_trucks = list(data.vehicle_prices.get(current_move_type_tab3, {}).keys()) if current_move_type_tab3 else []
+            # Ensure manual selection is valid, fallback if not
+            manual_value = st.session_state.get('manual_vehicle_select_value')
+            if manual_value not in available_trucks and available_trucks:
+                 st.session_state.manual_vehicle_select_value = available_trucks[0] # Fallback to first available
+            elif not available_trucks:
+                 st.session_state.manual_vehicle_select_value = None
+
+            st.selectbox(
+                "수동 차량 선택:",
+                options=available_trucks,
+                key="manual_vehicle_select_value",
+                index=available_trucks.index(st.session_state.manual_vehicle_select_value) if st.session_state.manual_vehicle_select_value in available_trucks else 0,
+                on_change=callbacks.update_basket_quantities # Update baskets on change
+            )
+            st.markdown(f"☑️ 수동 선택: **{st.session_state.get('manual_vehicle_select_value', 'N/A')}**")
+
+        # Final selected vehicle display (for confirmation)
+        final_vehicle_tab3 = st.session_state.get('final_selected_vehicle')
+        if final_vehicle_tab3:
+             st.success(f"➡️ 최종 선택 차량: **{final_vehicle_tab3}**")
+        else:
+             st.warning("⚠️ 최종 차량이 선택되지 않았습니다.")
+
+        st.markdown("---")
+
+        # Additional Personnel & Options
+        col_p1, col_p2 = st.columns(2)
+        with col_p1:
+            st.number_input("👨 추가 남자 인원", min_value=0, step=1, key="add_men")
+        with col_p2:
+            st.number_input("👩 추가 여자 인원", min_value=0, step=1, key="add_women")
+
+        st.checkbox("🧹 기본 여성 인원 제외", key="remove_base_housewife", help="체크 시 기본 포함된 여성 인원 비용이 차감됩니다.")
+
+        # Ladder/Sky Options
+        from_method = st.session_state.get('from_method')
+        to_method = st.session_state.get('to_method')
+        if from_method == "스카이 🏗️": st.number_input("⬆️ 출발지 스카이 시간", min_value=1, step=1, key="sky_hours_from")
+        if to_method == "스카이 🏗️": st.number_input("⬇️ 도착지 스카이 시간", min_value=1, step=1, key="sky_hours_final")
+        st.number_input("🏞️ 지방 사다리차 추가금", min_value=0, step=1000, key="regional_ladder_surcharge", help="수도권 외 지역 사다리차 사용 시 추가 비용")
+
+        # Waste Disposal
+        st.checkbox("🗑️ 폐기물 처리 요청", key="has_waste_check")
+        if st.session_state.get('has_waste_check'):
+            st.number_input("처리할 폐기물 톤(Ton)", min_value=0.5, step=0.5, key="waste_tons_input", format="%.1f")
+
+        # Special Day Surcharges
+        st.markdown("**🗓️ 이사 날짜 할증 선택**")
+        date_opts = ["이사많은날 🏠", "손없는날 ✋", "월말 📅", "공휴일 🎉", "금요일 📅"]
+        cols_dates = st.columns(len(date_opts))
+        for i, option in enumerate(date_opts):
+            with cols_dates[i]:
+                st.checkbox(option, key=f"date_opt_{i}_widget")
+
+        st.markdown("---")
+        # Adjustments
+        st.number_input("💰 비용 조정 (+/-)", step=1000, key="adjustment_amount", help="최종 비용 가감 조정 (음수 입력 가능)")
+        st.number_input("💰 계약금", min_value=0, step=10000, key="deposit_amount")
+
+        # Actual dispatched vehicle input (for final excel)
+        st.markdown("**🚚 실제 투입 차량 (최종 엑셀용)**")
+        col_t1, col_t2, col_t3, col_t4 = st.columns(4)
+        with col_t1: st.number_input("1톤", min_value=0, key="dispatched_1t")
+        with col_t2: st.number_input("2.5톤", min_value=0, key="dispatched_2_5t")
+        with col_t3: st.number_input("3.5톤", min_value=0, key="dispatched_3_5t")
+        with col_t4: st.number_input("5톤", min_value=0, key="dispatched_5t")
+
+
+    st.markdown("---")
+    # --- Output Generation Section ---
+    st.header("📄 견적서 생성 및 발송")
+
+    # Prepare data for output functions
+    state_dict = st.session_state.to_dict()
+    final_cost_for_output = st.session_state.get('calculated_total_cost', 0)
+    cost_items_for_output = st.session_state.get('calculated_cost_items', [])
+    personnel_info_for_output = st.session_state.get('personnel_info', {})
+
+    # Filename generation for downloads
+    customer_name_file = state_dict.get('customer_name', '고객')
+    moving_date_file = state_dict.get('moving_date')
+    date_str_file = moving_date_file.strftime('%Y%m%d') if isinstance(moving_date_file, date) else "날짜미정"
+    base_filename_file = f"이삿날견적_{date_str_file}_{customer_name_file}"
+
+    col_pdf, col_excel_sum, col_excel_final, col_email = st.columns(4)
+
+    # PDF Generation
+    with col_pdf:
+        st.markdown("**PDF 견적서**")
+        try:
+            # Generate PDF in memory (이미지 데이터 불필요)
+            pdf_bytes = pdf_generator.generate_pdf(
+                state_dict,
+                cost_items_for_output,
+                final_cost_for_output,
+                personnel_info_for_output
+                # 이미지 관련 인자 제거됨
+            )
+            if pdf_bytes:
+                st.download_button(
+                    label="📄 PDF 다운로드",
+                    data=pdf_bytes,
+                    file_name=f"{base_filename_file}.pdf",
+                    mime="application/pdf"
                 )
-                uploader_rendered_successfully = True
-            except StreamlitAPIException as api_ex:
-                # Check if it's the specific deserialization error if needed
-                st.error("⚠️ 파일 업로더 로딩 중 문제가 발생했습니다.")
-                st.warning("페이지를 새로고침(F5)하거나, 잠시 후 다시 시도해주세요.")
-                print(f"DEBUG: Caught StreamlitAPIException during file_uploader render: {api_ex}")
-                # We cannot render the form if the uploader fails, as state access might be broken
-            except Exception as general_ex:
-                st.error(f"파일 업로더 렌더링 중 예상치 못한 오류: {general_ex}")
-                traceback.print_exc()
-                # Consider not rendering the form
-            # --- End try-except block ---
+                st.session_state['pdf_data_customer'] = pdf_bytes # Store for email
+            else:
+                st.error("PDF 생성 실패")
+        except Exception as pdf_e:
+            st.error(f"PDF 생성 오류: {pdf_e}")
+            traceback.print_exc()
 
-            # Only render the form if the uploader rendered without the specific API exception
-            if uploader_rendered_successfully:
-                with st.form(key="save_quote_form"):
-                    # (Filename examples, captions - unchanged)
-                    try: kst_ex=pytz.timezone("Asia/Seoul"); now_ex_str=datetime.now(kst_ex).strftime('%y%m%d')
-                    except Exception: now_ex_str = datetime.now().strftime('%y%m%d')
-                    phone_ex = utils.extract_phone_number_part(st.session_state.get('customer_phone', ''), length=4, default="XXXX")
-                    quote_base_name = f"{now_ex_str}-{phone_ex}"; example_json_fname = f"{quote_base_name}.json"; st.caption(f"JSON: `{example_json_fname}`"); st.caption(f"사진: `{quote_base_name}_사진1.png` 등")
-                    st.caption("JSON 파일은 덮어쓰기, 사진은 항상 새로 업로드됩니다.")
+    # Summary Excel Generation (from pdf_generator)
+    with col_excel_sum:
+        st.markdown("**요약 Excel (내부 확인용)**")
+        try:
+            # Generate summary excel (이미지 데이터 불필요)
+            excel_summary_bytes = pdf_generator.generate_excel(
+                 state_dict,
+                 cost_items_for_output,
+                 final_cost_for_output,
+                 personnel_info_for_output
+                 # 이미지 관련 인자 제거됨
+            )
+            if excel_summary_bytes:
+                st.download_button(
+                    label="📊 요약 Excel 다운로드",
+                    data=excel_summary_bytes,
+                    file_name=f"{base_filename_file}_요약.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                )
+            else:
+                st.error("요약 Excel 생성 실패")
+        except Exception as exs_e:
+            st.error(f"요약 Excel 오류: {exs_e}")
+            traceback.print_exc()
 
-                    submitted = st.form_submit_button("💾 Google Drive에 저장")
+    # Final Excel Generation (from excel_filler)
+    with col_excel_final:
+        st.markdown("**최종 Excel (전달용)**")
+        try:
+            # Generate final excel (이미지 데이터 불필요)
+            final_excel_bytes = excel_filler.fill_final_excel_template(
+                 state_dict,
+                 cost_items_for_output,
+                 final_cost_for_output,
+                 personnel_info_for_output
+                 # 이미지 관련 인자 제거됨
+            )
+            if final_excel_bytes:
+                 st.download_button(
+                      label="📋 최종 Excel 다운로드",
+                      data=final_excel_bytes,
+                      file_name=f"{base_filename_file}_최종견적.xlsx",
+                      mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                 )
+                 st.session_state['final_excel_data'] = final_excel_bytes # Optional: Store if needed
+            else:
+                 st.error("최종 Excel 생성 실패")
+        except Exception as exf_e:
+            st.error(f"최종 Excel 오류: {exf_e}")
+            traceback.print_exc()
 
-                    if submitted:
-                        # Access files via session state KEY
-                        current_uploaded_files = st.session_state.get("quote_image_uploader", []) or []
-                        files_to_upload = current_uploaded_files
 
-                        customer_phone = st.session_state.get('customer_phone', ''); phone_part = utils.extract_phone_number_part(customer_phone, length=4)
+    # Email Section
+    with col_email:
+        st.markdown("**이메일 발송**")
+        recipient = st.session_state.get('customer_email')
+        pdf_ready_for_email = st.session_state.get('pdf_data_customer')
 
-                        if phone_part == "번호없음" or not customer_phone.strip():
-                             st.error("⚠️ 저장 실패: 고객 전화번호 필요.")
-                        else:
-                            # (Generate filenames - unchanged)
-                            try: kst_save = pytz.timezone("Asia/Seoul"); now_save = datetime.now(kst_save)
-                            except Exception: now_save = datetime.now()
-                            date_str = now_save.strftime('%y%m%d'); base_save_name = f"{date_str}-{phone_part}"; json_filename = f"{base_save_name}.json"
+        if not recipient:
+            st.warning("고객 이메일 주소가 없습니다.")
+        elif not pdf_ready_for_email:
+            st.warning("PDF 견적서가 생성되지 않았습니다.")
+        else:
+            email_subject = f"[이삿날] {customer_name_file} 고객님 이사 견적서입니다."
+            email_body = f"""안녕하세요, {customer_name_file} 고객님. 이삿날입니다.
 
-                            # Process and Upload Images
-                            # (Image Upload Logic - unchanged)
-                            saved_image_names = []; num_images_to_upload = len(files_to_upload); img_upload_bar = None
-                            if num_images_to_upload > 0: img_upload_bar = st.progress(0, text=f"🖼️ 이미지 업로드 중... (0/{num_images_to_upload})")
-                            upload_errors = False
-                            for i, uploaded_file_obj in enumerate(files_to_upload):
-                                if uploaded_file_obj is None: continue
-                                original_filename = uploaded_file_obj.name; _, extension = os.path.splitext(original_filename)
-                                desired_drive_image_filename = f"{base_save_name}_사진{i+1}{extension}"
-                                with st.spinner(f"이미지 '{desired_drive_image_filename}' 처리 및 업로드 중..."):
-                                    try:
-                                        image_bytes = uploaded_file_obj.getvalue(); save_img_result = gdrive.save_image_file(desired_drive_image_filename, image_bytes)
-                                        if save_img_result and save_img_result.get('id'): actual_saved_name = save_img_result.get('name', desired_drive_image_filename); saved_image_names.append(actual_saved_name);
-                                        if img_upload_bar: progress_val = (i + 1) / num_images_to_upload; img_upload_bar.progress(progress_val, text=f"🖼️ 이미지 업로드 중... ({i+1}/{num_images_to_upload})")
-                                        else: st.error(f"❌ 이미지 '{original_filename}' 업로드 실패."); upload_errors = True
-                                    except Exception as read_err: st.error(f"❌ 이미지 '{original_filename}' 처리 오류: {read_err}"); upload_errors = True; traceback.print_exc();
-                            if img_upload_bar: img_upload_bar.empty()
-                            if not upload_errors and num_images_to_upload > 0: st.success(f"✅ 이미지 {num_images_to_upload}개 업로드 완료.")
-                            elif upload_errors: st.warning("⚠️ 일부 이미지 업로드 실패.")
+요청하신 이사 견적서를 첨부해 드립니다.
+이사 예정일: {date_str_file}
 
-                            st.session_state.gdrive_image_files = saved_image_names
-                            state_data_to_save = prepare_state_for_save()
+견적 내용을 확인하신 후 궁금한 점이 있으시면 언제든지 연락 주세요.
 
-                            # Save JSON
-                            json_save_success = False
-                            try:
-                                with st.spinner(f"🔄 '{json_filename}' 데이터 저장 중..."): save_json_result = gdrive.save_json_file(json_filename, state_data_to_save)
-                                if save_json_result and save_json_result.get('id'): st.success(f"✅ '{json_filename}' 저장 완료."); json_save_success = True
-                                else: st.error(f"❌ '{json_filename}' 저장 실패.")
-                            except Exception as save_err: st.error(f"❌ '{json_filename}' 저장 중 예외: {save_err}"); traceback.print_exc()
+감사합니다.
 
-                            # REMOVED state reset and explicit rerun
-                # --- End Form ---
-            # else: If uploader failed to render, the form is not shown.
+이삿날 드림
+{data.COMPANY_PHONE_1 if hasattr(data, 'COMPANY_PHONE_1') else ''}
+{data.COMPANY_EMAIL if hasattr(data, 'COMPANY_EMAIL') else ''}
+"""
+            if st.button("📧 이메일 발송", key="send_email_btn"):
+                with st.spinner("이메일 발송 중..."):
+                    success = email_utils.send_quote_email(
+                        recipient_email=recipient,
+                        subject=email_subject,
+                        body=email_body,
+                        pdf_bytes=pdf_ready_for_email, # PDF 바이트 전달
+                        pdf_filename=f"{base_filename_file}.pdf" # 파일명 전달
+                        # 이미지 첨부 관련 인자 없음
+                    )
+                if success:
+                    st.success(f"{recipient} 주소로 이메일 발송 완료!")
+                else:
+                    st.error("이메일 발송 실패. 관리자에게 문의하세요.")
 
-    # --- Customer Info Section RESTORED ---
-    st.divider()
-    st.header("📝 고객 기본 정보")
-    # (Customer Info Section Code - unchanged)
-    move_type_options_tab1 = globals().get('MOVE_TYPE_OPTIONS'); sync_move_type_callback_ref = getattr(callbacks, 'sync_move_type', None)
-    if move_type_options_tab1:
-        try: current_index_tab1 = move_type_options_tab1.index(st.session_state.base_move_type)
-        except ValueError: current_index_tab1 = 0
-        st.radio( "🏢 **기본 이사 유형**", options=move_type_options_tab1, index=current_index_tab1, horizontal=True, key="base_move_type_widget_tab1", on_change=sync_move_type_callback_ref, args=("base_move_type_widget_tab1",) )
-    else: st.warning("이사 유형 옵션을 로드할 수 없습니다.")
-    col_opts1, col_opts2 = st.columns(2);
-    with col_opts1: st.checkbox("📦 보관이사 여부", key="is_storage_move")
-    with col_opts2: st.checkbox("🛣️ 장거리 이사 적용", key="apply_long_distance")
-    col1, col2 = st.columns(2)
-    with col1: st.text_input("👤 고객명", key="customer_name"); st.text_input("📍 출발지 주소", key="from_location");
-    if st.session_state.get('apply_long_distance'): ld_options = data.long_distance_options if hasattr(data,'long_distance_options') else []; st.selectbox("🛣️ 장거리 구간 선택", ld_options, key="long_distance_selector")
-    st.text_input("🔼 출발지 층수", key="from_floor", placeholder="예: 3, B1, -1"); method_options = data.METHOD_OPTIONS if hasattr(data,'METHOD_OPTIONS') else []; st.selectbox("🛠️ 출발지 작업 방법", method_options, key="from_method", help="사다리차, 승강기, 계단, 스카이 중 선택")
-    with col2: st.text_input("📞 전화번호", key="customer_phone", placeholder="01012345678"); st.text_input("📧 이메일", key="customer_email", placeholder="email@example.com"); st.text_input("📍 도착지 주소", key="to_location", placeholder="이사 도착지 상세 주소"); st.text_input("🔽 도착지 층수", key="to_floor", placeholder="예: 5, B2, -2"); method_options_to = data.METHOD_OPTIONS if hasattr(data,'METHOD_OPTIONS') else []; st.selectbox("🛠️ 도착지 작업 방법", method_options_to, key="to_method", help="사다리차, 승강기, 계단, 스카이 중 선택")
-    current_moving_date_val = st.session_state.get('moving_date');
-    if not isinstance(current_moving_date_val, date):
-         try: kst_def = pytz.timezone("Asia/Seoul"); default_date_def = datetime.now(kst_def).date()
-         except Exception: default_date_def = datetime.now().date()
-         st.session_state.moving_date = default_date_def
-    st.date_input("🗓️ 이사 예정일 (출발일)", key="moving_date"); kst_time_str = utils.get_current_kst_time_str() if utils and hasattr(utils, 'get_current_kst_time_str') else ''; st.caption(f"⏱️ 견적 생성일: {kst_time_str}")
-    st.divider()
-
-    # --- Display Loaded Images RESTORED ---
-    # (Code unchanged)
-    if st.session_state.get("loaded_images"): st.subheader("🖼️ 불러온 사진"); # ... Rest of image display ...
-
-    # --- Storage Move Info / Special Notes RESTORED ---
-    # (Code unchanged)
-    if st.session_state.get('is_storage_move'): st.subheader("📦 보관이사 추가 정보"); # ... Rest of storage/notes ...
-
-# --- End of render_tab1 function ---
+# --- End of render_tab3 function ---
