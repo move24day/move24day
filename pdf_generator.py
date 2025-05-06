@@ -1,4 +1,4 @@
-# pdf_generator.py (최종 검토 및 수정 버전)
+# pdf_generator.py (세미콜론 제거, 컬럼 너비 계산 로직 수정 반영)
 
 import pandas as pd
 import io
@@ -21,7 +21,7 @@ try:
     from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
     _REPORTLAB_AVAILABLE = True
 except ImportError as reportlab_error:
-    st.error(f"ReportLab 라이브러리를 찾을 수 없습니다. 설치가 필요합니다: {reportlab_error}")
+    st.error(f"ReportLab 라이브러리를 찾을 수 없습니다: {reportlab_error}")
     print(f"ERROR [PDF]: ReportLab not found. PDF generation disabled. {reportlab_error}")
     _REPORTLAB_AVAILABLE = False
 
@@ -124,9 +124,22 @@ def generate_pdf(state_data, calculated_cost_items, total_cost, personnel_info):
         current_y -= line_height * 0.5
 
         # --- 비용 상세 내역 ---
-        cost_start_y = current_y;
-        if cost_start_y < margin_y + 5*cm : c.showPage(); page_number += 1; draw_page_template(c, page_number); cost_start_y = height - margin_y - 1*cm; c.setFont('NanumGothic', 11)
-        current_y = cost_start_y; c.setFont('NanumGothicBold', 12); c.drawString(margin_x, current_y, "[ 비용 상세 내역 ]"); current_y -= line_height * 1.2
+        cost_start_y = current_y
+        # *** 추가: 비용 섹션 시작 전 세로 여백 추가 ***
+        current_y -= 1.5*cm # 예: 1.5cm 만큼 아래로 내림 (값 조절 가능)
+
+        # 여백 추가 후 페이지에 그릴 공간 확인
+        if current_y < margin_y + 5*cm :
+            c.showPage(); page_number += 1; draw_page_template(c, page_number)
+            current_y = height - margin_y - 1*cm
+            c.setFont('NanumGothic', 11)
+
+        # 수정된 current_y 위치에 제목 그리기
+        c.setFont('NanumGothicBold', 12)
+        c.drawString(margin_x, current_y, "[ 비용 상세 내역 ]")
+        current_y -= line_height * 1.2 # 제목 아래 여백
+
+        # 테이블 헤더 그리기
         c.setFont('NanumGothicBold', 10); cost_col1_x = margin_x; cost_col2_x = margin_x + 8*cm; cost_col3_x = margin_x + 11*cm; c.drawString(cost_col1_x, current_y, "항목"); c.drawRightString(cost_col2_x + 2*cm, current_y, "금액"); c.drawString(cost_col3_x, current_y, "비고"); c.setFont('NanumGothic', 10); current_y -= 0.2*cm; c.line(cost_col1_x, current_y, right_margin_x, current_y); current_y -= line_height * 0.8
 
         # --- 비용 항목 처리 (날짜 할증 병합 및 기본 운임 비고 수정 적용) ---
@@ -142,14 +155,19 @@ def generate_pdf(state_data, calculated_cost_items, total_cost, personnel_info):
               if str(item[0]) == "기본 운임":
                  base_fare_index = i
                  if date_surcharge_index != -1 and date_surcharge_amount > 0:
-                     try: item[1] = int(item[1] or 0) + date_surcharge_amount; item[2] = "이사 집중일 추가 운영 요금" # 수정된 비고 적용
+                     try:
+                         current_base_fare = int(item[1] or 0)
+                         item[1] = current_base_fare + date_surcharge_amount
+                         # --- !!! 수정된 비고 생성 로직 (차량 정보 추가) !!! ---
+                         selected_vehicle_remark = state_data.get('final_selected_vehicle', '') # 차량 정보 가져오기
+                         item[2] = f"{selected_vehicle_remark} 이사 집중일 추가 운영 요금" # 비고 설정
                      except Exception as e: print(f"Error merging date surcharge: {e}")
                  break
         if date_surcharge_index != -1:
               if date_surcharge_index < len(temp_items):
                   try: del temp_items[date_surcharge_index]
                   except IndexError: print(f"Warning: Could not remove date surcharge item at index {date_surcharge_index}")
-              else: print(f"Warning: date_surcharge_index {date_surcharge_index} out of range for temp_items (len: {len(temp_items)})")
+              else: print(f"Warning: date_surcharge_index {date_surcharge_index} out of range")
 
         for item_data in temp_items:
              item_desc = str(item_data[0])
@@ -157,9 +175,7 @@ def generate_pdf(state_data, calculated_cost_items, total_cost, personnel_info):
              item_note = ""
              try: item_cost_int = int(item_data[1] or 0)
              except (ValueError, TypeError): item_cost_int = 0
-             # 비고는 세 번째 요소가 있을 때만 가져오도록 명시
-             if len(item_data) > 2:
-                 item_note = str(item_data[2] or '') # None 방지
+             if len(item_data) > 2: item_note = str(item_data[2] or '')
              cost_items_processed.append((item_desc, item_cost_int, item_note))
         # --- 비용 항목 처리 끝 ---
 
@@ -310,11 +326,11 @@ def generate_excel(state_data, calculated_cost_items, total_cost, personnel_info
                  if isinstance(item, (list, tuple)) and len(item) >= 2:
                     item_desc = str(item[0]); item_cost = 0; item_note = ""
                     # 비용 가져오기 (수정됨)
-                    try: item_cost = int(item[1] or 0) # None 방지
+                    try: item_cost = int(item[1] or 0)
                     except (ValueError, TypeError): item_cost = 0
                     # 비고 가져오기 (수정됨)
                     if len(item) > 2:
-                         try: item_note = str(item[2] or '') # None 방지
+                         try: item_note = str(item[2] or '')
                          except Exception: item_note = ''
                     # 오류 항목 아니면 추가
                     if "오류" not in item_desc: cost_details_excel.append({"항목": item_desc, "금액": item_cost, "비고": item_note})
@@ -339,7 +355,7 @@ def generate_excel(state_data, calculated_cost_items, total_cost, personnel_info
                     try: header_value = worksheet[f"{column}1"].value; header_len = len(str(header_value)) if header_value is not None else 0;
                     except Exception: header_len = 0;
                     max_length = header_len
-                    # --- 셀 값 처리 로직 수정 ---
+                    # --- 셀 값 처리 로직 수정 (가독성 및 안정성 개선) ---
                     for cell in col:
                         try:
                             if cell.value is not None:
