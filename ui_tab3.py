@@ -34,7 +34,7 @@ def render_tab3():
     st.header("💰 계산 및 옵션 ")
 
     # --- Move Type Selection (Tab 3) ---
-    st.subheader("🏢 이사 유형 확인/변경")
+    st.subheader("🏢 이사 유형 ")
     current_move_type = st.session_state.get('base_move_type')
     move_type_options_local = globals().get('MOVE_TYPE_OPTIONS', [])
 
@@ -181,7 +181,7 @@ def render_tab3():
         with col_add2: st.number_input("추가 여성 인원 👩", min_value=0, step=1, key="add_women", help="기본 인원 외 추가로 필요한 여성 작업자 수")
         st.write("")
 
-        st.subheader("🚚 실제 투입 차량 (견적과 별개)")
+        st.subheader("🚚 실제 투입 차량 ")
         dispatched_cols = st.columns(4)
         with dispatched_cols[0]: st.number_input("1톤", min_value=0, step=1, key="dispatched_1t")
         with dispatched_cols[1]: st.number_input("2.5톤", min_value=0, step=1, key="dispatched_2_5t")
