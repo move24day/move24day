@@ -1,4 +1,4 @@
-# ui_tab1.py (파일 처리 후 업로더 상태 즉시 초기화 적용)
+# ui_tab1.py (on_change 콜백으로 즉시 처리 및 상태 초기화 적용)
 import streamlit as st
 from datetime import datetime, date
 import pytz
@@ -18,13 +18,20 @@ try:
         prepare_state_for_save,
         load_state_from_data
     )
+    # 콜백 함수가 있는 모듈 import
     import callbacks
+    # 만약 콜백 함수를 이 파일에 직접 정의했다면 위 라인은 필요 없음
 except ImportError as ie:
     st.error(f"UI Tab 1: 필수 모듈 로딩 실패 - {ie}")
     st.stop()
 except Exception as e:
     st.error(f"UI Tab 1: 모듈 로딩 중 오류 - {e}")
     st.stop()
+
+# --- 콜백 함수 정의 (만약 callbacks.py 대신 여기에 정의한다면) ---
+# import traceback # 함수 내에서 사용하므로 import 필요
+# def process_and_clear_on_upload(): ... (위에 정의된 콜백 함수 내용) ...
+# --- 콜백 함수 정의 끝 ---
 
 
 def render_tab1():
@@ -113,19 +120,43 @@ def render_tab1():
                     else: st.error(f"❌ '{st.session_state.gdrive_selected_filename}' 파일 로딩 또는 JSON 파싱 실패.")
                 else: st.warning("⚠️ 불러올 파일을 선택해주세요.")
 
+
         # --- Save Section ---
         with col_save:
             st.markdown("**현재 견적 저장**")
 
-            # --- Form 시작 ---
-            with st.form(key="save_quote_form"):
-                uploaded_files_in_form = st.file_uploader(
-                    "사진 첨부 (저장 시 함께 업로드):",
-                    accept_multiple_files=True,
-                    type=['png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp'],
-                    key="quote_image_uploader" # 위젯 키
-                )
+            # --- 파일 처리 상태 초기화 (만약 없다면) ---
+            if 'processed_files_for_upload' not in st.session_state:
+                st.session_state.processed_files_for_upload = []
 
+            # --- 파일 업로더 (on_change 콜백 추가) ---
+            # 폼 외부에 두어도 on_change 콜백으로 상태 관리가 가능할 수 있음
+            # 또는 폼 내부에 두어도 됨 (현재는 폼 외부에 두는 것으로 가정)
+            # 콜백 함수 참조 가져오기
+            uploader_callback = getattr(callbacks, 'process_and_clear_on_upload', None)
+            # 만약 콜백을 이 파일에 정의했다면: uploader_callback = process_and_clear_on_upload
+
+            st.file_uploader(
+                "사진 첨부:",
+                accept_multiple_files=True,
+                type=['png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp'],
+                key="quote_image_uploader", # 위젯 키
+                on_change=uploader_callback # *** 콜백 함수 연결 ***
+            )
+
+            # --- 처리된 파일 목록 표시 (사용자 피드백용) ---
+            st.markdown("**저장될 사진 목록:**")
+            if st.session_state.processed_files_for_upload:
+                for i, file_data in enumerate(st.session_state.processed_files_for_upload):
+                    st.markdown(f"- `{file_data['name']}`")
+            else:
+                st.caption("업로드된 사진 없음")
+            st.caption("👆 사진 선택/해제 시 위 목록이 갱신됩니다.")
+            st.write("---") # 구분선
+
+
+            # --- Form 시작 (저장 버튼만 포함) ---
+            with st.form(key="save_quote_form"):
                 # (Filename examples and captions - 동일)
                 try: kst_ex = pytz.timezone("Asia/Seoul"); now_ex_str = datetime.now(kst_ex).strftime('%y%m%d')
                 except Exception: now_ex_str = datetime.now().strftime('%y%m%d')
@@ -139,29 +170,9 @@ def render_tab1():
                 submitted = st.form_submit_button("💾 Google Drive에 저장")
 
                 if submitted:
-                    # 1. 업로드된 파일 객체 가져오기 (기존과 동일)
-                    uploaded_file_objects = uploaded_files_in_form or []
-
-                    # 2. 파일 내용(bytes)과 이름만 추출하여 별도 리스트에 저장 (기존과 동일)
-                    processed_files_for_upload = []
-                    if uploaded_file_objects:
-                        with st.spinner("첨부 파일 처리 중..."):
-                            for file_obj in uploaded_file_objects:
-                                try:
-                                    file_name = file_obj.name
-                                    file_bytes = file_obj.getvalue()
-                                    processed_files_for_upload.append({'name': file_name, 'bytes': file_bytes})
-                                except Exception as e:
-                                    st.error(f"파일 '{file_obj.name}' 처리 중 오류: {e}")
-                        if processed_files_for_upload: # 처리된 파일이 있을 경우만 메시지 표시
-                            st.info(f"✅ {len(processed_files_for_upload)}개 파일 처리 완료 (업로드 준비).")
-
-                    # --- *** 새로운 핵심 수정 부분 *** ---
-                    # 3. 파일 처리 후, 파일 업로더 위젯의 상태를 즉시 초기화!
-                    #    이렇게 하면 다음 rerun 시 Streamlit이 불안정한 상태를 복원하려 시도하지 않음.
-                    st.session_state.quote_image_uploader = []
-                    print("DEBUG: Cleared st.session_state.quote_image_uploader after processing.") # 확인용 로그
-                    # --- *** 새로운 핵심 수정 끝 *** ---
+                    # --- 저장 로직 ---
+                    # 이제 콜백에서 처리된 'processed_files_for_upload' 상태를 사용
+                    files_data_to_upload = st.session_state.processed_files_for_upload
 
                     customer_phone = st.session_state.get('customer_phone', '')
                     phone_part = utils.extract_phone_number_part(customer_phone, length=4)
@@ -173,15 +184,15 @@ def render_tab1():
                         except Exception: now_save = datetime.now()
                         date_str = now_save.strftime('%y%m%d'); base_save_name = f"{date_str}-{phone_part}"; json_filename = f"{base_save_name}.json"
 
-                        # --- 이미지 처리 및 업로드 (processed_files_for_upload 사용 - 기존과 동일) ---
+                        # --- 이미지 업로드 (files_data_to_upload 사용) ---
                         saved_image_names = []
-                        num_images_to_upload = len(processed_files_for_upload)
+                        num_images_to_upload = len(files_data_to_upload) # 처리된 데이터 사용
                         img_upload_bar = None
                         if num_images_to_upload > 0:
                             img_upload_bar = st.progress(0, text=f"🖼️ 이미지 업로드 시작 (0/{num_images_to_upload})")
                         upload_errors = False
 
-                        for i, file_data in enumerate(processed_files_for_upload):
+                        for i, file_data in enumerate(files_data_to_upload): # 처리된 데이터 순회
                             original_filename = file_data['name']; image_bytes = file_data['bytes']; _, extension = os.path.splitext(original_filename)
                             desired_drive_image_filename = f"{base_save_name}_사진{i+1}{extension}"
                             progress_text = f"🖼️ '{original_filename}' ({i+1}/{num_images_to_upload}) 업로드 중..."
@@ -196,8 +207,7 @@ def render_tab1():
                                         st.error(f"❌ 이미지 '{original_filename}' 업로드 실패.")
                                         upload_errors = True
                                 except Exception as upload_err:
-                                    st.error(f"❌ 이미지 '{original_filename}' 업로드 오류: {upload_err}")
-                                    upload_errors = True; traceback.print_exc()
+                                    st.error(f"❌ 이미지 '{original_filename}' 업로드 오류: {upload_err}"); upload_errors = True; traceback.print_exc()
                             if img_upload_bar: img_upload_bar.progress((i + 1) / num_images_to_upload, text=f"🖼️ 이미지 업로드 ({i+1}/{num_images_to_upload})")
 
                         if img_upload_bar: img_upload_bar.empty()
@@ -216,14 +226,12 @@ def render_tab1():
                             if save_json_result and save_json_result.get('id'):
                                 st.success(f"✅ 견적 데이터 '{json_filename}' 저장 완료.")
                                 json_save_success = True
+                                # 성공 시 처리된 파일 상태도 초기화 (선택적)
+                                # st.session_state.processed_files_for_upload = []
                             else: st.error(f"❌ 견적 데이터 '{json_filename}' 저장 실패.")
                         except Exception as save_err:
                             st.error(f"❌ '{json_filename}' 저장 중 예외 발생: {save_err}"); traceback.print_exc()
                         # --- JSON 저장 완료 ---
-
-                        # 저장 후 페이지 새로고침 등 필요시 추가
-                        # if json_save_success and not upload_errors: st.rerun()
-
             # --- End Form ---
 
     st.divider()
