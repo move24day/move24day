@@ -1,10 +1,11 @@
-# ui_tab1.py (Remove key, Use flag for conditional render after submit)
+# ui_tab1.py (Moved file_uploader OUTSIDE the form, Re-added key)
 import streamlit as st
 from datetime import datetime, date
 import pytz
 import json
 import os
 import time
+import traceback # Keep for debugging
 
 # Import necessary custom modules
 try:
@@ -28,18 +29,7 @@ except Exception as e:
 def render_tab1():
     """Renders the UI for Tab 1: Customer Info and Google Drive."""
 
-    # --- Flag Check at the beginning ---
-    # Initialize flag if it doesn't exist
-    if 'clear_uploader_on_next_run' not in st.session_state:
-        st.session_state.clear_uploader_on_next_run = False
-
-    render_the_uploader = True
-    if st.session_state.clear_uploader_on_next_run:
-        print("DEBUG: Skipping uploader render for this run to clear state.") # 디버깅 메시지
-        render_the_uploader = False
-        # Reset flag immediately for subsequent runs triggered by other interactions
-        st.session_state.clear_uploader_on_next_run = False
-    # --- End Flag Check ---
+    # --- Removed flag check ---
 
     # === Google Drive Section ===
     with st.container(border=True):
@@ -50,20 +40,14 @@ def render_tab1():
         # --- Load Section ---
         # (Load Section Code - unchanged, omitted for brevity)
         with col_load:
-            st.markdown("**견적 불러오기**")
-            search_term = st.text_input("JSON 검색어 (날짜 YYMMDD 또는 번호 XXXX)", key="gdrive_search_term", help="파일 이름 일부 입력 후 검색")
+            st.markdown("**견적 불러오기**"); search_term = st.text_input("JSON 검색어 (날짜 YYMMDD 또는 번호 XXXX)", key="gdrive_search_term", help="파일 이름 일부 입력 후 검색")
             if st.button("🔍 견적 검색"):
                 st.session_state.loaded_images = {}; st.session_state.gdrive_image_files = []
                 search_term_strip = search_term.strip()
                 if search_term_strip:
                     with st.spinner("🔄 Google Drive에서 JSON 검색 중..."): results = gdrive.find_files_by_name_contains(search_term_strip, mime_types="application/json")
-                    if results:
-                        st.session_state.gdrive_search_results = results; st.session_state.gdrive_file_options_map = {res['name']: res['id'] for res in results}; first_result_id = results[0].get('id')
-                        st.session_state.gdrive_selected_file_id = first_result_id; st.session_state.gdrive_selected_filename = next((name for name, fid in st.session_state.gdrive_file_options_map.items() if fid == first_result_id), None)
-                        st.success(f"✅ {len(results)}개 JSON 파일 검색 완료.")
-                    else:
-                        st.session_state.gdrive_search_results = []; st.session_state.gdrive_file_options_map = {}; st.session_state.gdrive_selected_file_id = None; st.session_state.gdrive_selected_filename = None
-                        st.warning("⚠️ 해당 검색어의 JSON 견적 파일이 없습니다.")
+                    if results: st.session_state.gdrive_search_results = results; st.session_state.gdrive_file_options_map = {res['name']: res['id'] for res in results}; first_result_id = results[0].get('id'); st.session_state.gdrive_selected_file_id = first_result_id; st.session_state.gdrive_selected_filename = next((name for name, fid in st.session_state.gdrive_file_options_map.items() if fid == first_result_id), None); st.success(f"✅ {len(results)}개 JSON 파일 검색 완료.")
+                    else: st.session_state.gdrive_search_results = []; st.session_state.gdrive_file_options_map = {}; st.session_state.gdrive_selected_file_id = None; st.session_state.gdrive_selected_filename = None; st.warning("⚠️ 해당 검색어의 JSON 견적 파일이 없습니다.")
                 else: st.warning("⚠️ 검색어를 입력하세요.")
             if st.session_state.get('gdrive_search_results'):
                  file_options_display = list(st.session_state.gdrive_file_options_map.keys()); current_selection_index = 0
@@ -107,6 +91,18 @@ def render_tab1():
         # --- Save Section ---
         with col_save:
             st.markdown("**현재 견적 저장**")
+
+            # --- Moved File Uploader OUTSIDE the form ---
+            # --- Re-added key="quote_image_uploader" ---
+            st.file_uploader(
+                "사진 첨부:",
+                accept_multiple_files=True,
+                type=['png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp'],
+                key="quote_image_uploader"  # <-- Key is BACK
+            )
+            # --- End File Uploader ---
+
+            # --- Form starts AFTER the file uploader ---
             with st.form(key="save_quote_form"):
                 try: kst_ex = pytz.timezone("Asia/Seoul"); now_ex_str = datetime.now(kst_ex).strftime('%y%m%d')
                 except Exception: now_ex_str = datetime.now().strftime('%y%m%d')
@@ -114,57 +110,48 @@ def render_tab1():
                 quote_base_name = f"{now_ex_str}-{phone_ex}"; example_json_fname = f"{quote_base_name}.json"
                 st.caption(f"JSON 파일명 형식: `{example_json_fname}`"); st.caption(f"사진 파일명 형식: `{quote_base_name}_사진1.png` 등 (중복 시 자동 이름 변경)")
 
-                # --- Conditionally render the uploader ---
-                uploaded_image_files_in_form = None # Initialize
-                if render_the_uploader:
-                    uploaded_image_files_in_form = st.file_uploader(
-                        "사진 첨부:",
-                        accept_multiple_files=True,
-                        type=['png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp']
-                        # key is REMOVED
-                    )
-                else:
-                    st.caption("...") # Indicate uploader is temporarily hidden
-                # --- End conditional render ---
+                # Removed uploader from here
 
                 st.caption("JSON(견적 데이터) 파일은 덮어쓰기됩니다. 사진은 매번 새로 업로드됩니다 (중복 시 자동 이름 변경).")
                 submitted = st.form_submit_button("💾 Google Drive에 저장")
 
                 if submitted:
-                    # Use the variable if the uploader was rendered, else default to empty list
-                    current_uploaded_files = uploaded_image_files_in_form or []
-                    files_to_upload = current_uploaded_files
+                    # --- Access uploaded files using the KEY from session_state ---
+                    current_uploaded_files = st.session_state.get("quote_image_uploader", []) or []
+                    files_to_upload = current_uploaded_files # Use all files from state
 
                     customer_phone = st.session_state.get('customer_phone', ''); phone_part = utils.extract_phone_number_part(customer_phone, length=4)
 
                     if phone_part == "번호없음" or not customer_phone.strip():
                          st.error("⚠️ 저장 실패: 고객 전화번호(뒤 4자리 포함)를 먼저 입력해주세요.")
-                         # DO NOT SET FLAG OR RERUN ON VALIDATION ERROR
+                         # Do not proceed further on validation error
                     else:
-                        # Proceed with saving only if phone number is valid
-                        save_successful = False # Flag to track overall save success
+                        save_successful = False
                         try:
                             kst_save = pytz.timezone("Asia/Seoul"); now_save = datetime.now(kst_save)
                         except Exception:
                             now_save = datetime.now()
                         date_str = now_save.strftime('%y%m%d'); base_save_name = f"{date_str}-{phone_part}"; json_filename = f"{base_save_name}.json"
 
-                        # --- Image Upload Logic ---
+                        # --- Image Upload Logic (using files_to_upload from state) ---
                         saved_image_names = []
                         num_images_to_upload = len(files_to_upload); img_upload_bar = None
                         if num_images_to_upload > 0: img_upload_bar = st.progress(0, text=f"🖼️ 이미지 업로드 중... (0/{num_images_to_upload})")
                         upload_errors = False
                         for i, uploaded_file in enumerate(files_to_upload):
-                            # (Image upload loop - unchanged, omitted for brevity)
+                            if uploaded_file is None: continue # Skip if file object is somehow None
                             original_filename = uploaded_file.name; _, extension = os.path.splitext(original_filename)
                             desired_drive_image_filename = f"{base_save_name}_사진{i+1}{extension}"
                             with st.spinner(f"이미지 '{desired_drive_image_filename}' 업로드 시도 중..."):
-                                image_bytes = uploaded_file.getvalue()
-                                save_img_result = gdrive.save_image_file(desired_drive_image_filename, image_bytes)
-                            if save_img_result and save_img_result.get('id'):
-                                 actual_saved_name = save_img_result.get('name', desired_drive_image_filename); saved_image_names.append(actual_saved_name)
-                                 if img_upload_bar: progress_val = (i + 1) / num_images_to_upload; img_upload_bar.progress(progress_val, text=f"🖼️ 이미지 업로드 중... ({i+1}/{num_images_to_upload})")
-                            else: st.error(f"❌ 이미지 '{original_filename}' 업로드 실패."); upload_errors = True
+                                try:
+                                    image_bytes = uploaded_file.getvalue() # Read bytes
+                                    save_img_result = gdrive.save_image_file(desired_drive_image_filename, image_bytes)
+                                    if save_img_result and save_img_result.get('id'):
+                                        actual_saved_name = save_img_result.get('name', desired_drive_image_filename); saved_image_names.append(actual_saved_name)
+                                        if img_upload_bar: progress_val = (i + 1) / num_images_to_upload; img_upload_bar.progress(progress_val, text=f"🖼️ 이미지 업로드 중... ({i+1}/{num_images_to_upload})")
+                                    else: st.error(f"❌ 이미지 '{original_filename}' 업로드 실패 (Drive 저장 오류)."); upload_errors = True
+                                except Exception as read_err:
+                                     st.error(f"❌ 이미지 '{original_filename}' 처리 중 오류 발생: {read_err}"); upload_errors = True; traceback.print_exc();
                         if img_upload_bar: img_upload_bar.empty()
                         if not upload_errors and num_images_to_upload > 0: st.success(f"✅ 이미지 {num_images_to_upload}개 업로드 완료.")
                         elif upload_errors: st.warning("⚠️ 일부 이미지 업로드에 실패했습니다.")
@@ -181,19 +168,20 @@ def render_tab1():
                             if save_json_result and save_json_result.get('id'):
                                 st.success(f"✅ '{json_filename}' 저장/업데이트 완료.")
                                 json_save_success = True
+                                # --- Clear the uploader state AFTER successful JSON save ---
+                                # This might still cause issues, but let's try
+                                # We access via key now, so this *might* work after submit
+                                if "quote_image_uploader" in st.session_state:
+                                    st.session_state.quote_image_uploader = []
+                                print("DEBUG: Attempted to clear uploader state after successful save.")
                             else: st.error(f"❌ '{json_filename}' 저장 중 오류 발생.")
                         except TypeError as json_err: st.error(f"❌ 저장 실패: 데이터를 JSON으로 변환 중 오류 발생 - {json_err}"); traceback.print_exc()
                         except Exception as save_err: st.error(f"❌ '{json_filename}' 파일 저장 중 예외 발생: {save_err}"); traceback.print_exc()
                         # --- End JSON Save Logic ---
 
-                        # Set flag only if JSON save was successful (or if only images were uploaded without error?)
-                        # Let's assume success requires JSON save. Adjust if needed.
-                        if json_save_success:
-                             print("DEBUG: Setting clear_uploader_on_next_run flag.") # 디버깅 메시지
-                             st.session_state.clear_uploader_on_next_run = True
-                             save_successful = True # Mark overall success
+                        save_successful = json_save_success # Track overall success
 
-                        # --- Force immediate rerun AFTER all submission logic ---
+                        # Rerun only if the save operation (at least JSON) was attempted
                         st.rerun()
             # --- End Form ---
 
@@ -211,21 +199,16 @@ def render_tab1():
     with col_opts1: st.checkbox("📦 보관이사 여부", key="is_storage_move")
     with col_opts2: st.checkbox("🛣️ 장거리 이사 적용", key="apply_long_distance")
     col1, col2 = st.columns(2)
-    with col1:
-        st.text_input("👤 고객명", key="customer_name"); st.text_input("📍 출발지 주소", key="from_location")
-        if st.session_state.get('apply_long_distance'): ld_options = data.long_distance_options if hasattr(data,'long_distance_options') else []; st.selectbox("🛣️ 장거리 구간 선택", ld_options, key="long_distance_selector")
-        st.text_input("🔼 출발지 층수", key="from_floor", placeholder="예: 3, B1, -1")
-        method_options = data.METHOD_OPTIONS if hasattr(data,'METHOD_OPTIONS') else []; st.selectbox("🛠️ 출발지 작업 방법", method_options, key="from_method", help="사다리차, 승강기, 계단, 스카이 중 선택")
-    with col2:
-        st.text_input("📞 전화번호", key="customer_phone", placeholder="01012345678"); st.text_input("📧 이메일", key="customer_email", placeholder="email@example.com")
-        st.text_input("📍 도착지 주소", key="to_location", placeholder="이사 도착지 상세 주소"); st.text_input("🔽 도착지 층수", key="to_floor", placeholder="예: 5, B2, -2")
-        method_options_to = data.METHOD_OPTIONS if hasattr(data,'METHOD_OPTIONS') else []; st.selectbox("🛠️ 도착지 작업 방법", method_options_to, key="to_method", help="사다리차, 승강기, 계단, 스카이 중 선택")
-        current_moving_date_val = st.session_state.get('moving_date')
-        if not isinstance(current_moving_date_val, date):
-             try: kst_def = pytz.timezone("Asia/Seoul"); default_date_def = datetime.now(kst_def).date()
-             except Exception: default_date_def = datetime.now().date()
-             st.session_state.moving_date = default_date_def
-        st.date_input("🗓️ 이사 예정일 (출발일)", key="moving_date"); kst_time_str = utils.get_current_kst_time_str() if utils and hasattr(utils, 'get_current_kst_time_str') else ''; st.caption(f"⏱️ 견적 생성일: {kst_time_str}")
+    with col1: st.text_input("👤 고객명", key="customer_name"); st.text_input("📍 출발지 주소", key="from_location");
+    if st.session_state.get('apply_long_distance'): ld_options = data.long_distance_options if hasattr(data,'long_distance_options') else []; st.selectbox("🛣️ 장거리 구간 선택", ld_options, key="long_distance_selector")
+    st.text_input("🔼 출발지 층수", key="from_floor", placeholder="예: 3, B1, -1"); method_options = data.METHOD_OPTIONS if hasattr(data,'METHOD_OPTIONS') else []; st.selectbox("🛠️ 출발지 작업 방법", method_options, key="from_method", help="사다리차, 승강기, 계단, 스카이 중 선택")
+    with col2: st.text_input("📞 전화번호", key="customer_phone", placeholder="01012345678"); st.text_input("📧 이메일", key="customer_email", placeholder="email@example.com"); st.text_input("📍 도착지 주소", key="to_location", placeholder="이사 도착지 상세 주소"); st.text_input("🔽 도착지 층수", key="to_floor", placeholder="예: 5, B2, -2"); method_options_to = data.METHOD_OPTIONS if hasattr(data,'METHOD_OPTIONS') else []; st.selectbox("🛠️ 도착지 작업 방법", method_options_to, key="to_method", help="사다리차, 승강기, 계단, 스카이 중 선택")
+    current_moving_date_val = st.session_state.get('moving_date');
+    if not isinstance(current_moving_date_val, date):
+         try: kst_def = pytz.timezone("Asia/Seoul"); default_date_def = datetime.now(kst_def).date()
+         except Exception: default_date_def = datetime.now().date()
+         st.session_state.moving_date = default_date_def
+    st.date_input("🗓️ 이사 예정일 (출발일)", key="moving_date"); kst_time_str = utils.get_current_kst_time_str() if utils and hasattr(utils, 'get_current_kst_time_str') else ''; st.caption(f"⏱️ 견적 생성일: {kst_time_str}")
     st.divider()
 
     # --- Display Loaded Images ---
@@ -239,14 +222,11 @@ def render_tab1():
                 i += 1
         st.divider()
 
-
     # --- Storage Move Info / Special Notes ---
     # (Code unchanged, omitted for brevity)
     if st.session_state.get('is_storage_move'):
-        st.subheader("📦 보관이사 추가 정보"); storage_options = data.STORAGE_TYPE_OPTIONS if hasattr(data, 'STORAGE_TYPE_OPTIONS') else []
-        st.radio("보관 유형 선택:", options=storage_options, key="storage_type", horizontal=True); st.number_input("보관 기간 (일)", min_value=1, step=1, key="storage_duration")
+        st.subheader("📦 보관이사 추가 정보"); storage_options = data.STORAGE_TYPE_OPTIONS if hasattr(data, 'STORAGE_TYPE_OPTIONS') else []; st.radio("보관 유형 선택:", options=storage_options, key="storage_type", horizontal=True); st.number_input("보관 기간 (일)", min_value=1, step=1, key="storage_duration");
         st.divider()
-    st.header("🗒️ 고객 요구사항")
-    st.text_area( "기타 특이사항이나 요청사항을 입력해주세요.", height=100, key="special_notes", placeholder="예: 에어컨 이전 설치 필요, 특정 가구 분해/조립 요청 등" )
+    st.header("🗒️ 고객 요구사항"); st.text_area( "기타 특이사항이나 요청사항을 입력해주세요.", height=100, key="special_notes", placeholder="예: 에어컨 이전 설치 필요, 특정 가구 분해/조립 요청 등" )
 
 # --- End of render_tab1 function ---
