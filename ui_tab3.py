@@ -1,4 +1,4 @@
-# ui_tab3.py (Fixed SyntaxError in format_money_manwon_unit)
+# ui_tab3.py (Fixed SyntaxError in format_money_manwon_unit again, Fixed DuplicateKey)
 import streamlit as st
 import pandas as pd
 import io
@@ -11,15 +11,15 @@ try:
     import data
     import utils
     import calculations
-    import pdf_generator
-    # import excel_filler # Removed
-    # import excel_summary_generator # Removed
-    import email_utils # Needed
+    import pdf_generator # Needed for generate_excel (used in summary) and generate_pdf
+    import excel_filler # Needed for the final excel generation
+    import email_utils # Needed for sending email
     from state_manager import MOVE_TYPE_OPTIONS
     from callbacks import sync_move_type, update_basket_quantities
 except ImportError as ie:
     st.error(f"UI Tab 3: 필수 모듈 로딩 실패 - {ie}")
     if 'email_utils' not in str(ie): st.warning("email_utils.py 파일이 필요합니다.")
+    if 'excel_filler' not in str(ie): st.warning("excel_filler.py 파일이 필요합니다.")
     st.stop()
 except Exception as e:
     st.error(f"UI Tab 3: 모듈 로딩 중 오류 발생 - {e}")
@@ -154,7 +154,7 @@ def render_tab3():
     # --- Final Quote Results ---
     st.header("💵 최종 견적 결과")
     final_selected_vehicle_calc = st.session_state.get('final_selected_vehicle')
-    total_cost = 0; cost_items = []; personnel_info = {}; has_cost_error = False; can_gen_pdf = False
+    total_cost = 0; cost_items = []; personnel_info = {}; has_cost_error = False; can_gen_pdf = False; can_gen_final_excel = False
 
     if final_selected_vehicle_calc:
         try:
@@ -200,18 +200,18 @@ def render_tab3():
                         df_info = xls.parse("견적 정보", header=None); df_cost = xls.parse("비용 내역 및 요약", header=None)
                         info_dict = dict(zip(df_info[0].astype(str), df_info[1].astype(str))) if not df_info.empty and len(df_info.columns) > 1 else {}
 
-                        # --- FIX: Added 'except Exception:' below ---
+                        # --- !!! FIX: Corrected try-except syntax !!! ---
                         def format_money_manwon_unit(amount):
-                            try:
+                            try: # Correctly starts try block
                                 amount_str = str(amount).replace(",", "").split()[0]
                                 amount_float = float(amount_str)
                                 amount_int = int(amount_float)
                                 if amount_int == 0: return "0"
                                 manwon_value = amount_int // 10000
                                 return f"{manwon_value}"
-                            except Exception: # <-- FIX: Added 'except Exception:'
+                            except Exception: # Correctly starts except block
                                 return "금액오류"
-                        # --- End Fix ---
+                        # --- !!! End Fix !!! ---
 
                         def get_cost_abbr_manwon_unit(kw, abbr, df):
                             if df.empty or len(df.columns) < 2: return f"{abbr} 정보 없음";
@@ -256,83 +256,94 @@ def render_tab3():
         except Exception as calc_err_outer:
             st.error(f"비용 계산 중 오류 발생: {calc_err_outer}")
             traceback.print_exc()
-            has_cost_error = True # Assume error if calculation fails
+            has_cost_error = True
 
-        # --- PDF Generation and Email Section ---
-        st.subheader("📧 견적서 PDF 생성 및 이메일 발송")
+        # --- Combined File Generation and Email Section ---
+        st.subheader("📄 견적서 생성 및 발송")
         can_gen_pdf = bool(final_selected_vehicle_calc) and not has_cost_error
+        can_gen_final_excel = bool(final_selected_vehicle_calc)
 
-        if can_gen_pdf:
-            # --- PDF Generation Button ---
-            if st.button("📄 PDF 견적서 생성 (이메일 발송 준비)"):
-                pdf_bytes = None
-                # --- Added try-except block here for SyntaxError ---
-                try:
-                    pdf_total_cost = st.session_state.get("final_adjusted_cost", 0)
-                    # Ensure cost_items and personnel_info are available
-                    if not cost_items and not has_cost_error:
-                         pdf_total_cost, cost_items, personnel_info = calculations.calculate_total_moving_cost(st.session_state.to_dict())
-                    # Need to ensure personnel_info is a dict for generate_pdf
-                    if not isinstance(personnel_info, dict): personnel_info = {}
+        cols_gen = st.columns(2)
 
-                    pdf_bytes = pdf_generator.generate_pdf(st.session_state.to_dict(), cost_items, pdf_total_cost, personnel_info)
-                    st.session_state['pdf_data_customer'] = pdf_bytes
-                    if pdf_bytes:
-                        st.success("✅ PDF 생성 완료! 아래에서 이메일로 발송하세요.")
-                        st.rerun()
-                    else:
-                        st.error("❌ PDF 생성 실패.")
-                        if 'pdf_data_customer' in st.session_state: del st.session_state['pdf_data_customer']
-                # --- Added except block to fix SyntaxError ---
-                except Exception as pdf_gen_err:
-                     st.error(f"PDF 생성 중 예외 발생: {pdf_gen_err}")
-                     traceback.print_exc()
-                     if 'pdf_data_customer' in st.session_state: del st.session_state['pdf_data_customer']
-                # --- End of added try-except block ---
+        with cols_gen[0]:
+            st.markdown("**① Final 견적서 (Excel)**")
+            if can_gen_final_excel:
+                 if st.button("📄 생성: Final 견적서"):
+                     try:
+                         latest_total_cost_fe, latest_cost_items_fe, latest_personnel_info_fe = calculations.calculate_total_moving_cost(st.session_state.to_dict())
+                         if not isinstance(latest_personnel_info_fe, dict): latest_personnel_info_fe = {}
+                         filled_excel_data = excel_filler.fill_final_excel_template(st.session_state.to_dict(), latest_cost_items_fe, latest_total_cost_fe, latest_personnel_info_fe)
+                         if filled_excel_data:
+                             st.session_state['final_excel_data'] = filled_excel_data; st.success("✅ Final Excel 생성 완료!")
+                         else:
+                             if 'final_excel_data' in st.session_state: del st.session_state['final_excel_data'];
+                             st.error("❌ Final Excel 생성 실패.")
+                     except Exception as fe_err:
+                          st.error(f"Final Excel 생성 중 오류: {fe_err}"); traceback.print_exc()
+                          if 'final_excel_data' in st.session_state: del st.session_state['final_excel_data']
+                 if st.session_state.get('final_excel_data'):
+                     ph_part = utils.extract_phone_number_part(st.session_state.get('customer_phone', ''), 4, "0000"); now_str = datetime.now(pytz.timezone("Asia/Seoul")).strftime('%y%m%d') if pytz else datetime.now().strftime('%y%m%d')
+                     fname = f"{ph_part}_{now_str}_Final견적서.xlsx"
+                     st.download_button("📥 다운로드 (Final Excel)", st.session_state['final_excel_data'], fname, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", key='dl_final_excel')
+                 else: st.caption("생성 버튼 클릭")
+            else: st.caption("Excel 생성 불가")
 
-            # --- Email Sending Section ---
-            if st.session_state.get('pdf_data_customer'):
-                st.write("---")
-                st.markdown("**이메일 발송**")
-                default_email = st.session_state.get('customer_email', '')
-                recipient_email = st.text_input("받는 사람 이메일 주소:", value=default_email, key="recipient_email_input")
+        with cols_gen[1]:
+            st.markdown("**② 고객용 견적서 (PDF 이메일)**")
+            if can_gen_pdf:
+                if st.button("📧 PDF 생성 및 발송 준비"):
+                    pdf_bytes = None
+                    try:
+                        pdf_total_cost = st.session_state.get("final_adjusted_cost", 0)
+                        if not cost_items and not has_cost_error:
+                             pdf_total_cost, cost_items, personnel_info = calculations.calculate_total_moving_cost(st.session_state.to_dict())
+                        if not isinstance(personnel_info, dict): personnel_info = {}
+                        pdf_bytes = pdf_generator.generate_pdf(st.session_state.to_dict(), cost_items, pdf_total_cost, personnel_info)
+                        st.session_state['pdf_data_customer'] = pdf_bytes
+                        if pdf_bytes: st.success("✅ PDF 생성 완료! 아래에서 이메일로 발송하세요."); st.rerun()
+                        else:
+                            st.error("❌ PDF 생성 실패.");
+                            if 'pdf_data_customer' in st.session_state: del st.session_state['pdf_data_customer']
+                    except Exception as pdf_gen_err:
+                         st.error(f"PDF 생성 중 예외 발생: {pdf_gen_err}"); traceback.print_exc()
+                         if 'pdf_data_customer' in st.session_state: del st.session_state['pdf_data_customer']
 
-                if st.button("📤 견적서 이메일 발송"):
-                    if recipient_email:
-                        pdf_bytes_to_send = st.session_state.get('pdf_data_customer')
-                        if pdf_bytes_to_send:
-                            ph_part = utils.extract_phone_number_part(st.session_state.get('customer_phone', ''), 4, "0000")
-                            try: now_str = datetime.now(pytz.timezone("Asia/Seoul")).strftime('%y%m%d_%H%M')
-                            except Exception: now_str = datetime.now().strftime('%y%m%d_%H%M')
-                            pdf_filename_for_email = f"{ph_part}_{now_str}_이삿날견적서.pdf"
-                            email_subject = f"[이삿날] {st.session_state.get('customer_name','고객')}님 견적서입니다."
-                            email_body = f"""안녕하세요, {st.session_state.get('customer_name','고객')}님.
+                if st.session_state.get('pdf_data_customer'):
+                    st.write("---")
+                    st.markdown("**이메일 발송**")
+                    default_email = st.session_state.get('customer_email', '')
+                    recipient_email = st.text_input("받는 사람 이메일 주소:", value=default_email, key="recipient_email_input")
+                    if st.button("📤 견적서 이메일 발송"):
+                        if recipient_email:
+                            pdf_bytes_to_send = st.session_state.get('pdf_data_customer')
+                            if pdf_bytes_to_send:
+                                ph_part = utils.extract_phone_number_part(st.session_state.get('customer_phone', ''), 4, "0000")
+                                try: now_str = datetime.now(pytz.timezone("Asia/Seoul")).strftime('%y%m%d_%H%M')
+                                except Exception: now_str = datetime.now().strftime('%y%m%d_%H%M')
+                                pdf_filename_for_email = f"{ph_part}_{now_str}_이삿날견적서.pdf"
+                                email_subject = f"[이삿날] {st.session_state.get('customer_name','고객')}님 견적서입니다."
+                                email_body = f"""안녕하세요, {st.session_state.get('customer_name','고객')}님.
 요청하신 이삿날 견적서를 첨부하여 보내드립니다.
 
 감사합니다.
 """
-                            with st.spinner("📧 이메일 발송 중..."):
-                                send_success = email_utils.send_quote_email(
-                                    recipient_email=recipient_email, subject=email_subject, body=email_body,
-                                    pdf_bytes=pdf_bytes_to_send, pdf_filename=pdf_filename_for_email )
-                            if send_success: st.success(f"✅ '{recipient_email}' 주소로 견적서 이메일을 성공적으로 발송했습니다.")
-                            else: st.error("❌ 이메일 발송 중 오류가 발생했습니다. 이메일 설정을 확인하거나 잠시 후 다시 시도해주세요.")
-                        else: st.warning("⚠️ 이메일로 발송할 PDF 데이터가 없습니다. 먼저 PDF를 생성해주세요.")
-                    else: st.warning("⚠️ 받는 사람 이메일 주소를 입력해주세요.")
-            elif can_gen_pdf:
-                 st.caption("PDF 생성 버튼을 눌러 이메일 발송을 준비하세요.")
-
-        else: # Cannot generate PDF
-            st.caption("PDF 생성 및 이메일 발송 불가 (차량 미선택 또는 비용 오류)")
+                                with st.spinner("📧 이메일 발송 중..."):
+                                    send_success = email_utils.send_quote_email(recipient_email=recipient_email, subject=email_subject, body=email_body, pdf_bytes=pdf_bytes_to_send, pdf_filename=pdf_filename_for_email )
+                                if send_success: st.success(f"✅ '{recipient_email}' 주소로 견적서 이메일을 성공적으로 발송했습니다.")
+                                else: st.error("❌ 이메일 발송 중 오류가 발생했습니다. 이메일 설정을 확인하거나 잠시 후 다시 시도해주세요.")
+                            else: st.warning("⚠️ 이메일로 발송할 PDF 데이터가 없습니다. 먼저 PDF를 생성해주세요.")
+                        else: st.warning("⚠️ 받는 사람 이메일 주소를 입력해주세요.")
+                elif can_gen_pdf: st.caption("PDF 생성 버튼을 눌러 이메일 발송을 준비하세요.")
+            else: st.caption("PDF 생성/발송 불가 (비용 오류?)")
 
     else: # Vehicle not selected
-        st.warning("⚠️ **차량을 먼저 선택해주세요.** 비용 계산, 요약 정보 표시 및 이메일 발송은 차량 선택 후 가능합니다.")
+        st.warning("⚠️ **차량을 먼저 선택해주세요.** 비용 계산, 요약 정보 표시, 파일 생성 및 발송은 차량 선택 후 가능합니다.")
 
     st.write("---")
 
     # --- Expander for Image Upload (Keep key unique) ---
     with st.expander("참고 이미지 업로드 및 미리보기 (문자 전송 준비용)", expanded=False):
-        # --- !!! KEY CHANGED HERE !!! ---
+        # --- !!! KEY CHANGED HERE to be unique !!! ---
         uploaded_file = st.file_uploader(
             "참고 이미지 업로드",
             type=['png', 'jpg', 'jpeg'],
