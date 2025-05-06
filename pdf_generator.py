@@ -1,4 +1,4 @@
-# pdf_generator.py (세미콜론 제거, 컬럼 너비 계산 로직 수정 반영)
+# pdf_generator.py (최종 검토 및 수정 버전)
 
 import pandas as pd
 import io
@@ -17,11 +17,11 @@ try:
     from reportlab.pdfbase import pdfmetrics
     from reportlab.pdfbase.ttfonts import TTFont
     from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-    from reportlab.platypus import Paragraph, Spacer
+    from reportlab.platypus import Paragraph # Spacer는 사용 안 함
     from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
     _REPORTLAB_AVAILABLE = True
 except ImportError as reportlab_error:
-    st.error(f"ReportLab 라이브러리를 찾을 수 없습니다: {reportlab_error}")
+    st.error(f"ReportLab 라이브러리를 찾을 수 없습니다. 설치가 필요합니다: {reportlab_error}")
     print(f"ERROR [PDF]: ReportLab not found. PDF generation disabled. {reportlab_error}")
     _REPORTLAB_AVAILABLE = False
 
@@ -134,7 +134,7 @@ def generate_pdf(state_data, calculated_cost_items, total_cost, personnel_info):
         if calculated_cost_items and isinstance(calculated_cost_items, list): temp_items = [list(item) for item in calculated_cost_items if isinstance(item, (list, tuple)) and len(item) >= 2 and "오류" not in str(item[0])]
         for i, item in enumerate(temp_items):
              if str(item[0]) == "날짜 할증":
-                 try: date_surcharge_amount = int(item[1])
+                 try: date_surcharge_amount = int(item[1] or 0) # None 방지
                  except (ValueError, TypeError): date_surcharge_amount = 0
                  date_surcharge_index = i; break
         base_fare_index = -1
@@ -151,13 +151,15 @@ def generate_pdf(state_data, calculated_cost_items, total_cost, personnel_info):
                   except IndexError: print(f"Warning: Could not remove date surcharge item at index {date_surcharge_index}")
               else: print(f"Warning: date_surcharge_index {date_surcharge_index} out of range for temp_items (len: {len(temp_items)})")
 
-        for item_data in temp_items: # 변수명 변경
+        for item_data in temp_items:
              item_desc = str(item_data[0])
              item_cost_int = 0
              item_note = ""
              try: item_cost_int = int(item_data[1] or 0)
              except (ValueError, TypeError): item_cost_int = 0
-             if len(item_data) > 2: item_note = str(item_data[2] or '')
+             # 비고는 세 번째 요소가 있을 때만 가져오도록 명시
+             if len(item_data) > 2:
+                 item_note = str(item_data[2] or '') # None 방지
              cost_items_processed.append((item_desc, item_cost_int, item_note))
         # --- 비용 항목 처리 끝 ---
 
@@ -181,7 +183,7 @@ def generate_pdf(state_data, calculated_cost_items, total_cost, personnel_info):
         total_cost_num = 0
         if isinstance(total_cost, (int, float)): total_cost_num = int(total_cost)
         deposit_amount_raw = state_data.get('deposit_amount', 0); deposit_amount = 0
-        try: deposit_amount = int(deposit_amount_raw or 0)
+        try: deposit_amount = int(deposit_amount_raw or 0) # None 방지
         except (ValueError, TypeError): deposit_amount = 0
         remaining_balance = total_cost_num - deposit_amount
 
@@ -229,28 +231,20 @@ def generate_excel(state_data, calculated_cost_items, total_cost, personnel_info
         is_storage = state_data.get('is_storage_move', False); is_long_distance = state_data.get('apply_long_distance', False); is_waste = state_data.get('has_waste_check', False)
         from_method = state_data.get('from_method', '-'); to_method = state_data.get('to_method', '-'); to_floor = state_data.get('to_floor', '-'); use_sky_from = (from_method == "스카이 🏗️"); use_sky_to = (to_method == "스카이 🏗️")
         p_info = personnel_info if isinstance(personnel_info, dict) else {}; final_men = p_info.get('final_men', 0); final_women = p_info.get('final_women', 0); personnel_text = f"남성 {final_men}명" + (f", 여성 {final_women}명" if final_women > 0 else "")
-        dest_address = state_data.get('to_location', '-') # 세미콜론 제거
+        dest_address = state_data.get('to_location', '-') # 세미콜론 제거됨
         kst_excel_date = ''
         if utils and hasattr(utils, 'get_current_kst_time_str'):
-            try:
-                kst_excel_date = utils.get_current_kst_time_str("%Y-%m-%d")
-            except Exception as e_time:
-                print(f"Warning: Error calling utils.get_current_kst_time_str: {e_time}")
-                kst_excel_date = datetime.now().strftime("%Y-%m-%d")
-        else:
-            print("Warning: utils module or get_current_kst_time_str not available.")
-            kst_excel_date = datetime.now().strftime("%Y-%m-%d")
+            try: kst_excel_date = utils.get_current_kst_time_str("%Y-%m-%d")
+            except Exception as e_time: print(f"Warning: Error calling utils.get_current_kst_time_str: {e_time}"); kst_excel_date = datetime.now().strftime("%Y-%m-%d")
+        else: print("Warning: utils module or get_current_kst_time_str not available."); kst_excel_date = datetime.now().strftime("%Y-%m-%d")
 
-        # 1. '견적 정보' 시트 데이터 생성 (가독성 개선 및 명확화)
+        # 1. '견적 정보' 시트 데이터 생성 (가독성 개선된 버전)
         ALL_INFO_LABELS = ["회사명", "주소", "연락처", "이메일", "", "고객명", "고객 연락처", "견적일", "이사 종류", "", "이사일", "출발지", "도착지", "출발층", "도착층", "출발 작업", "도착 작업", "", "보관 이사", "보관 기간", "보관 유형", "", "장거리 적용", "장거리 구간", "", "스카이 사용 시간", "", "폐기물 처리(톤)", "", "날짜 할증 선택", "", "총 작업 인원", "", "선택 차량", "자동 추천 차량", "이사짐 총 부피", "이사짐 총 무게", "", "고객요구사항"]
         info_data_list = []
         for label in ALL_INFO_LABELS:
-            value = '-' # 기본값 설정
-            if not label:
-                info_data_list.append(("", ""))
-                continue
-
-            # --- 값 매핑 로직 시작 (한 줄씩 분리 - 이전과 동일하게 가독성 유지) ---
+            value = '-'
+            if not label: info_data_list.append(("", "")); continue
+            # --- 값 매핑 로직 시작 (한 줄씩 분리) ---
             if label == "회사명": value = "(주)이사데이"
             elif label == "주소": value = COMPANY_ADDRESS
             elif label == "연락처": value = f"{COMPANY_PHONE_1} | {COMPANY_PHONE_2}"
@@ -308,6 +302,7 @@ def generate_excel(state_data, calculated_cost_items, total_cost, personnel_info
         if all_items_data: df_all_items = pd.DataFrame(all_items_data, columns=["품목명", "수량"])
         else: df_all_items = pd.DataFrame({"정보": ["정의된 품목 없음"]})
 
+
         # 3. '비용 내역 및 요약' 시트 데이터 생성 (수정된 가독성 버전)
         cost_details_excel = []
         if calculated_cost_items and isinstance(calculated_cost_items, list):
@@ -315,11 +310,11 @@ def generate_excel(state_data, calculated_cost_items, total_cost, personnel_info
                  if isinstance(item, (list, tuple)) and len(item) >= 2:
                     item_desc = str(item[0]); item_cost = 0; item_note = ""
                     # 비용 가져오기 (수정됨)
-                    try: item_cost = int(item[1] or 0)
+                    try: item_cost = int(item[1] or 0) # None 방지
                     except (ValueError, TypeError): item_cost = 0
                     # 비고 가져오기 (수정됨)
                     if len(item) > 2:
-                         try: item_note = str(item[2] or '')
+                         try: item_note = str(item[2] or '') # None 방지
                          except Exception: item_note = ''
                     # 오류 항목 아니면 추가
                     if "오류" not in item_desc: cost_details_excel.append({"항목": item_desc, "금액": item_cost, "비고": item_note})
@@ -354,17 +349,18 @@ def generate_excel(state_data, calculated_cost_items, total_cost, personnel_info
                                 cell_len = 0
                                 if lines: # 빈 리스트가 아닐 경우
                                      try:
-                                          line_lengths = [len(str(line or '')) for line in lines]
-                                          if line_lengths: cell_len = max(line_lengths)
+                                          line_lengths = [len(str(line or '')) for line in lines] # 각 줄 길이 계산
+                                          if line_lengths: cell_len = max(line_lengths) # 최대값 찾기
                                      except Exception as max_err:
                                           print(f"Warning: Error calculating max line length for cell {cell.coordinate}: {max_err}")
-                                          cell_len = len(lines[0]) if lines else 0
+                                          cell_len = len(lines[0]) if lines else 0 # 오류 시 첫 줄 길이
 
                                 # 현재 컬럼의 최대 길이 업데이트
                                 if cell_len > max_length:
                                     max_length = cell_len
                         except Exception as cell_proc_err:
                              print(f"Warning: Error processing cell {cell.coordinate} for width calculation: {cell_proc_err}")
+                             # pass # 오류 발생해도 계속 진행 (선택적)
                     # --- 셀 값 처리 로직 끝 ---
                     adjusted_width = (max_length + 2) * 1.2; adjusted_width = min(adjusted_width, 60); adjusted_width = max(adjusted_width, header_len + 2); worksheet.column_dimensions[column].width = adjusted_width
 
@@ -374,7 +370,8 @@ def generate_excel(state_data, calculated_cost_items, total_cost, personnel_info
     except Exception as e:
         st.error(f"엑셀 파일 생성 중 오류: {e}"); print(f"Error during Excel generation: {e}"); traceback.print_exc(); return None
     finally:
-        if output is not None:
+        # output 변수가 정의되었는지 확인 후 close 호출
+        if 'output' in locals() and output is not None:
              try: output.close()
              except Exception as close_e: print(f"Error closing Excel buffer: {close_e}")
 
