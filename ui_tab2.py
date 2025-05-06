@@ -15,7 +15,7 @@ except ImportError as e:
 def render_tab2():
     """Renders the UI for Tab 2: Item Selection."""
 
-    st.header("📋 이사 품목 선택 및 수량 입력")
+    st.header("📋 이사 품목 선택 ")
     st.caption(f"현재 선택된 기본 이사 유형: **{st.session_state.get('base_move_type', 'N/A')}**")
 
     # --- Item Quantity Inputs ---
