@@ -1,4 +1,4 @@
-# ui_tab3.py (Removed Excel downloads, Added PDF email sending)
+# ui_tab3.py (Fixed SyntaxError in format_money_manwon_unit)
 import streamlit as st
 import pandas as pd
 import io
@@ -11,15 +11,14 @@ try:
     import data
     import utils
     import calculations
-    import pdf_generator # Needed for generate_excel (used in summary) and generate_pdf
-    # import excel_filler # No longer needed for Final Excel
-    # import excel_summary_generator # No longer needed for Summary Excel
-    import email_utils # Needed for sending email
+    import pdf_generator
+    # import excel_filler # Removed
+    # import excel_summary_generator # Removed
+    import email_utils # Needed
     from state_manager import MOVE_TYPE_OPTIONS
     from callbacks import sync_move_type, update_basket_quantities
 except ImportError as ie:
     st.error(f"UI Tab 3: 필수 모듈 로딩 실패 - {ie}")
-    # Ensure specific missing modules are reported if possible
     if 'email_utils' not in str(ie): st.warning("email_utils.py 파일이 필요합니다.")
     st.stop()
 except Exception as e:
@@ -33,7 +32,7 @@ def render_tab3():
 
     st.header("💰 계산 및 옵션")
 
-    # --- Move Type Selection (Restored from previous full version) ---
+    # --- Move Type Selection ---
     st.subheader("🏢 이사 유형 확인/변경")
     current_move_type = st.session_state.get('base_move_type')
     current_index_tab3 = 0
@@ -48,7 +47,7 @@ def render_tab3():
     else: st.error("이사 유형 옵션을 정의할 수 없습니다. data.py 또는 state_manager.py 파일을 확인하세요.")
     st.divider()
 
-    # --- Vehicle Selection (Restored) ---
+    # --- Vehicle Selection ---
     with st.container(border=True):
         st.subheader("🚚 차량 선택")
         col_v1_widget, col_v2_widget = st.columns([1, 2])
@@ -102,7 +101,7 @@ def render_tab3():
                             st.caption(f"현재 이사짐 예상: {st.session_state.get('total_volume',0.0):.2f}m³, {st.session_state.get('total_weight',0.0):.2f}kg")
     st.divider()
 
-    # --- Work Conditions & Options (Restored) ---
+    # --- Work Conditions & Options ---
     with st.container(border=True):
         st.subheader("🛠️ 작업 조건 및 추가 옵션")
         sky_from = st.session_state.get('from_method') == "스카이 🏗️"; sky_to = st.session_state.get('to_method') == "스카이 🏗️"
@@ -143,7 +142,7 @@ def render_tab3():
             with cols_date[i]: st.checkbox(option, key=date_keys[i])
     st.divider()
 
-    # --- Cost Adjustment & Deposit (Restored) ---
+    # --- Cost Adjustment & Deposit ---
     with st.container(border=True):
         st.subheader("💰 비용 조정 및 계약금")
         col_adj1, col_adj2, col_adj3 = st.columns(3)
@@ -152,21 +151,17 @@ def render_tab3():
         with col_adj3: st.number_input("🪜 사다리 추가요금", min_value=0, step=10000, key="regional_ladder_surcharge", format="%d", help="추가되는 사다리차 비용")
     st.divider()
 
-    # --- Final Quote Results (Restored) ---
+    # --- Final Quote Results ---
     st.header("💵 최종 견적 결과")
     final_selected_vehicle_calc = st.session_state.get('final_selected_vehicle')
-    total_cost = 0
-    cost_items = []
-    personnel_info = {}
-    has_cost_error = False
-    can_gen_pdf = False
+    total_cost = 0; cost_items = []; personnel_info = {}; has_cost_error = False; can_gen_pdf = False
 
     if final_selected_vehicle_calc:
         try:
             current_state_dict = st.session_state.to_dict()
             total_cost, cost_items, personnel_info = calculations.calculate_total_moving_cost(current_state_dict)
             total_cost_num = total_cost if isinstance(total_cost, (int, float)) else 0
-            st.session_state["final_adjusted_cost"] = total_cost_num # Store calculated cost
+            st.session_state["final_adjusted_cost"] = total_cost_num
 
             try: deposit_amount_num = int(st.session_state.get('deposit_amount', 0))
             except (ValueError, TypeError): deposit_amount_num = 0
@@ -192,9 +187,8 @@ def render_tab3():
             special_notes_display = st.session_state.get('special_notes')
             if special_notes_display and special_notes_display.strip(): st.subheader("📝 고객요구사항"); st.info(special_notes_display)
 
-            # --- Move Info Summary (Restored) ---
+            # --- Move Info Summary ---
             st.subheader("📋 이사 정보 요약")
-            # (Summary generation and display logic remains the same)
             summary_generated = False
             try:
                 if not callable(getattr(pdf_generator, 'generate_excel', None)): raise ImportError("pdf_generator.generate_excel is not available or callable.")
@@ -205,10 +199,20 @@ def render_tab3():
                     if "견적 정보" in xls.sheet_names and "비용 내역 및 요약" in xls.sheet_names:
                         df_info = xls.parse("견적 정보", header=None); df_cost = xls.parse("비용 내역 및 요약", header=None)
                         info_dict = dict(zip(df_info[0].astype(str), df_info[1].astype(str))) if not df_info.empty and len(df_info.columns) > 1 else {}
+
+                        # --- FIX: Added 'except Exception:' below ---
                         def format_money_manwon_unit(amount):
-                            try: amount_str = str(amount).replace(",", "").split()[0]; amount_float = float(amount_str); amount_int = int(amount_float);
-                            if amount_int == 0: return "0"; manwon_value = amount_int // 10000; return f"{manwon_value}"
-                            except: return "금액오류"
+                            try:
+                                amount_str = str(amount).replace(",", "").split()[0]
+                                amount_float = float(amount_str)
+                                amount_int = int(amount_float)
+                                if amount_int == 0: return "0"
+                                manwon_value = amount_int // 10000
+                                return f"{manwon_value}"
+                            except Exception: # <-- FIX: Added 'except Exception:'
+                                return "금액오류"
+                        # --- End Fix ---
+
                         def get_cost_abbr_manwon_unit(kw, abbr, df):
                             if df.empty or len(df.columns) < 2: return f"{abbr} 정보 없음";
                             for i in range(len(df)):
@@ -228,7 +232,7 @@ def render_tab3():
                         bask_parts = [];
                         if q_b > 0: bask_parts.append(f"바{q_b}");
                         if q_m > 0: bask_parts.append(f"중{q_m}");
-                        if q_c > 0: bask_parts.append(f"옷{q_c}"); # If exists
+                        if q_c > 0: bask_parts.append(f"옷{q_c}");
                         if q_k > 0: bask_parts.append(f"책{q_k}");
                         bask = " ".join(bask_parts)
                         cont_fee_str = get_cost_abbr_manwon_unit("계약금 (-)", "계", df_cost); rem_fee_str = get_cost_abbr_manwon_unit("잔금 (VAT 별도)", "잔", df_cost)
@@ -259,33 +263,36 @@ def render_tab3():
         can_gen_pdf = bool(final_selected_vehicle_calc) and not has_cost_error
 
         if can_gen_pdf:
+            # --- PDF Generation Button ---
             if st.button("📄 PDF 견적서 생성 (이메일 발송 준비)"):
-                pdf_bytes = None # Initialize
+                pdf_bytes = None
+                # --- Added try-except block here for SyntaxError ---
                 try:
-                    # Use calculation results if already available and valid
                     pdf_total_cost = st.session_state.get("final_adjusted_cost", 0)
                     # Ensure cost_items and personnel_info are available
                     if not cost_items and not has_cost_error:
                          pdf_total_cost, cost_items, personnel_info = calculations.calculate_total_moving_cost(st.session_state.to_dict())
+                    # Need to ensure personnel_info is a dict for generate_pdf
+                    if not isinstance(personnel_info, dict): personnel_info = {}
 
                     pdf_bytes = pdf_generator.generate_pdf(st.session_state.to_dict(), cost_items, pdf_total_cost, personnel_info)
-                    st.session_state['pdf_data_customer'] = pdf_bytes # Store even if None initially
+                    st.session_state['pdf_data_customer'] = pdf_bytes
                     if pdf_bytes:
                         st.success("✅ PDF 생성 완료! 아래에서 이메일로 발송하세요.")
-                        st.rerun() # Rerun to show email section
+                        st.rerun()
                     else:
                         st.error("❌ PDF 생성 실패.")
-                        if 'pdf_data_customer' in st.session_state:
-                            del st.session_state['pdf_data_customer']
+                        if 'pdf_data_customer' in st.session_state: del st.session_state['pdf_data_customer']
+                # --- Added except block to fix SyntaxError ---
                 except Exception as pdf_gen_err:
                      st.error(f"PDF 생성 중 예외 발생: {pdf_gen_err}")
                      traceback.print_exc()
-                     if 'pdf_data_customer' in st.session_state:
-                         del st.session_state['pdf_data_customer']
+                     if 'pdf_data_customer' in st.session_state: del st.session_state['pdf_data_customer']
+                # --- End of added try-except block ---
 
-            # --- Email Sending Section (Show only if PDF is ready) ---
+            # --- Email Sending Section ---
             if st.session_state.get('pdf_data_customer'):
-                st.write("---") # Separator
+                st.write("---")
                 st.markdown("**이메일 발송**")
                 default_email = st.session_state.get('customer_email', '')
                 recipient_email = st.text_input("받는 사람 이메일 주소:", value=default_email, key="recipient_email_input")
@@ -312,7 +319,6 @@ def render_tab3():
                             else: st.error("❌ 이메일 발송 중 오류가 발생했습니다. 이메일 설정을 확인하거나 잠시 후 다시 시도해주세요.")
                         else: st.warning("⚠️ 이메일로 발송할 PDF 데이터가 없습니다. 먼저 PDF를 생성해주세요.")
                     else: st.warning("⚠️ 받는 사람 이메일 주소를 입력해주세요.")
-            # If PDF not yet generated, show hint
             elif can_gen_pdf:
                  st.caption("PDF 생성 버튼을 눌러 이메일 발송을 준비하세요.")
 
@@ -324,14 +330,15 @@ def render_tab3():
 
     st.write("---")
 
-    # --- Expander for Image Upload ---
-    # Changed key to be unique
-    with st.expander("결적서 이미지 업로드 및 미리보기 (문자 전송 준비용)", expanded=False):
+    # --- Expander for Image Upload (Keep key unique) ---
+    with st.expander("참고 이미지 업로드 및 미리보기 (문자 전송 준비용)", expanded=False):
+        # --- !!! KEY CHANGED HERE !!! ---
         uploaded_file = st.file_uploader(
-            "참고 이미지 업로드", # Changed label slightly
+            "참고 이미지 업로드",
             type=['png', 'jpg', 'jpeg'],
             key="preview_image_uploader"  # <-- UNIQUE KEY
         )
+        # --- !!! KEY CHANGE APPLIED !!! ---
         if uploaded_file:
             st.session_state["uploaded_file_for_preview"] = uploaded_file
             st.image(uploaded_file, caption="업로드된 참고 이미지 미리보기", use_column_width=True)
