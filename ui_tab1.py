@@ -1,4 +1,4 @@
-# ui_tab1.py (Uploader OUTSIDE form, WITH key, NO state reset attempt)
+# ui_tab1.py (Uploader outside form, WITH key, NO state reset, NO explicit rerun in submit)
 import streamlit as st
 from datetime import datetime, date
 import pytz
@@ -29,8 +29,6 @@ except Exception as e:
 def render_tab1():
     """Renders the UI for Tab 1: Customer Info and Google Drive."""
 
-    # --- Removed flag logic ---
-
     # === Google Drive Section ===
     with st.container(border=True):
         st.subheader("☁️ Google Drive 연동")
@@ -38,8 +36,8 @@ def render_tab1():
         col_load, col_save = st.columns(2)
 
         # --- Load Section ---
-        # (Load Section Code - unchanged, omitted for brevity)
         with col_load:
+            # (Load Section Code - unchanged, based on last working version)
             st.markdown("**견적 불러오기**"); search_term = st.text_input("JSON 검색어 (날짜 YYMMDD 또는 번호 XXXX)", key="gdrive_search_term", help="파일 이름 일부 입력 후 검색")
             if st.button("🔍 견적 검색"):
                 st.session_state.loaded_images = {}; st.session_state.gdrive_image_files = []
@@ -85,8 +83,7 @@ def render_tab1():
                                 if loaded_count > 0: st.success(f"✅ 이미지 {loaded_count}개 로딩 완료.")
                                 if loaded_count != num_images: st.warning(f"⚠️ {num_images - loaded_count}개 이미지 로딩 실패/못 찾음.")
                     else: st.error("❌ JSON 파일 로딩 실패.")
-                st.rerun()
-
+                # Removed explicit rerun from here
 
         # --- Save Section ---
         with col_save:
@@ -97,12 +94,12 @@ def render_tab1():
                 "사진 첨부:",
                 accept_multiple_files=True,
                 type=['png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp'],
-                key="quote_image_uploader"  # <-- Key is BACK
+                key="quote_image_uploader"  # <-- Key is Present
             )
             # --- End File Uploader ---
 
-            # --- Form starts AFTER the file uploader ---
             with st.form(key="save_quote_form"):
+                # (Filename examples, captions - unchanged)
                 try: kst_ex=pytz.timezone("Asia/Seoul"); now_ex_str=datetime.now(kst_ex).strftime('%y%m%d')
                 except Exception: now_ex_str = datetime.now().strftime('%y%m%d')
                 phone_ex = utils.extract_phone_number_part(st.session_state.get('customer_phone', ''), length=4, default="XXXX")
@@ -120,15 +117,15 @@ def render_tab1():
 
                     if phone_part == "번호없음" or not customer_phone.strip():
                          st.error("⚠️ 저장 실패: 고객 전화번호 필요.")
-                         # Stop processing if validation fails
                     else:
                         save_successful = False
-                        # Generate filenames
+                        # (Generate filenames - unchanged)
                         try: kst_save = pytz.timezone("Asia/Seoul"); now_save = datetime.now(kst_save)
                         except Exception: now_save = datetime.now()
                         date_str = now_save.strftime('%y%m%d'); base_save_name = f"{date_str}-{phone_part}"; json_filename = f"{base_save_name}.json"
 
                         # --- Process and Upload Images Immediately ---
+                        # (Image Upload Logic - unchanged)
                         saved_image_names = []
                         num_images_to_upload = len(files_to_upload); img_upload_bar = None
                         if num_images_to_upload > 0: img_upload_bar = st.progress(0, text=f"🖼️ 이미지 업로드 중... (0/{num_images_to_upload})")
@@ -139,8 +136,8 @@ def render_tab1():
                             desired_drive_image_filename = f"{base_save_name}_사진{i+1}{extension}"
                             with st.spinner(f"이미지 '{desired_drive_image_filename}' 처리 및 업로드 중..."):
                                 try:
-                                    image_bytes = uploaded_file_obj.getvalue() # Read bytes
-                                    save_img_result = gdrive.save_image_file(desired_drive_image_filename, image_bytes) # Upload to Drive
+                                    image_bytes = uploaded_file_obj.getvalue()
+                                    save_img_result = gdrive.save_image_file(desired_drive_image_filename, image_bytes)
                                     if save_img_result and save_img_result.get('id'):
                                          actual_saved_name = save_img_result.get('name', desired_drive_image_filename); saved_image_names.append(actual_saved_name)
                                          if img_upload_bar: progress_val = (i + 1) / num_images_to_upload; img_upload_bar.progress(progress_val, text=f"🖼️ 이미지 업로드 중... ({i+1}/{num_images_to_upload})")
@@ -151,8 +148,7 @@ def render_tab1():
                         elif upload_errors: st.warning("⚠️ 일부 이미지 업로드 실패.")
                         # --- End Image Processing ---
 
-                        # Prepare state for JSON, including the list of *successfully uploaded* image filenames
-                        st.session_state.gdrive_image_files = saved_image_names
+                        st.session_state.gdrive_image_files = saved_image_names # Update state
                         state_data_to_save = prepare_state_for_save()
 
                         # --- Save JSON ---
@@ -165,15 +161,7 @@ def render_tab1():
                         except Exception as save_err: st.error(f"❌ '{json_filename}' 저장 중 예외: {save_err}"); traceback.print_exc()
                         # --- End JSON Save ---
 
-                        # --- REMOVED State Reset Attempt ---
-                        # if json_save_success:
-                        #     # This line caused errors before, so it's removed.
-                        #     # if "quote_image_uploader" in st.session_state:
-                        #     #     st.session_state.quote_image_uploader = []
-                        #     pass
-
-                        # Rerun to reflect success/failure messages
-                        st.rerun()
+                        # --- REMOVED State Reset Attempt and Explicit Rerun ---
             # --- End Form ---
 
     st.divider()
