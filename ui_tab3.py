@@ -1,4 +1,4 @@
-# ui_tab3.py (Fixed SyntaxError in format_money_manwon_unit AGAIN, Fixed DuplicateKey)
+# ui_tab3.py (Fixed DuplicateElementKey by using a unique key for file uploader)
 import streamlit as st
 import pandas as pd
 import io
@@ -9,12 +9,12 @@ import traceback
 # Import necessary custom modules
 try:
     import data
-    import utils # Now includes convert_pdf_to_image
+    import utils
     import calculations
-    import pdf_generator # Needed for generate_excel (used in summary) and generate_pdf
-    import excel_filler # Needed for the final excel generation
-    import email_utils # Needed for sending email
-    import mms_utils # Needed for sending MMS (Placeholder)
+    import pdf_generator
+    import excel_filler
+    import email_utils
+    import mms_utils
     from state_manager import MOVE_TYPE_OPTIONS
     from callbacks import sync_move_type, update_basket_quantities
 except ImportError as ie:
@@ -368,23 +368,5 @@ def render_tab3():
         st.warning("⚠️ **차량을 먼저 선택해주세요.** 비용 계산, 요약 정보 표시, 파일 생성 및 발송은 차량 선택 후 가능합니다.")
 
     st.write("---")
-
-    # --- Expander for Image Upload (Keep unique key) ---
-    with st.expander("참고 이미지 업로드 및 미리보기", expanded=False):
-        # --- !!! KEY CHANGED HERE to be unique !!! ---
-        uploaded_file = st.file_uploader(
-            "참고 이미지 업로드",
-            type=['png', 'jpg', 'jpeg'],
-            key="preview_image_uploader"  # <-- UNIQUE KEY, Ensure this is different from Tab 1's uploader
-        )
-        # --- !!! KEY CHANGE APPLIED !!! ---
-        if uploaded_file:
-            st.session_state["uploaded_file_for_preview"] = uploaded_file
-            st.image(uploaded_file, caption="업로드된 참고 이미지 미리보기", use_column_width=True)
-        elif "uploaded_file_for_preview" in st.session_state and st.session_state["uploaded_file_for_preview"] is not None:
-             try: st.image(st.session_state["uploaded_file_for_preview"], caption="이전 업로드 이미지", use_column_width=True)
-             except Exception as img_err: st.warning(f"이전 이미지 표시에 실패했습니다: {img_err}")
-
-    st.caption("※ 이 탭에서는 생성된 견적서를 다운로드/이메일/MMS로 발송하거나, 참고용 이미지를 업로드할 수 있습니다.")
 
 # --- End of render_tab3 function ---
