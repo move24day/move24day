@@ -1,4 +1,4 @@
-# ui_tab1.py (Removed file_uploader key and related counter logic)
+# ui_tab1.py (file_uploader에 고정 key 추가 및 상태 초기화 로직 추가)
 import streamlit as st
 from datetime import datetime, date
 import pytz
@@ -79,7 +79,6 @@ def render_tab1():
                  if st.session_state.gdrive_selected_filename and not st.session_state.gdrive_selected_file_id and on_change_callback_gdrive:
                      on_change_callback_gdrive()
 
-            # Load button logic (Removed counter increment)
             load_button_disabled = not bool(st.session_state.get('gdrive_selected_file_id'))
             if st.button("📂 선택 견적 불러오기", disabled=load_button_disabled, key="load_gdrive_btn"):
                 json_file_id = st.session_state.gdrive_selected_file_id
@@ -124,9 +123,6 @@ def render_tab1():
                                 if loaded_count > 0: st.success(f"✅ 이미지 {loaded_count}개 로딩 완료.")
                                 if loaded_count != num_images: st.warning(f"⚠️ {num_images - loaded_count}개 이미지 로딩 실패 또는 찾을 수 없음.")
                             # --- 이미지 로딩 로직 끝 ---
-
-                            # --- !!! 카운터 증가 및 rerun 로직 삭제됨 !!! ---
-
                         # else: load_state_from_data 실패 처리 (함수 내)
                     else:
                          st.error("❌ 선택된 JSON 파일 내용을 불러오는 데 실패했습니다.")
@@ -135,10 +131,6 @@ def render_tab1():
         # --- Save Section ---
         with col_save:
             st.markdown("**현재 견적 저장**")
-            # 카운터 확인 로직 삭제됨
-            # if 'file_uploader_key_counter' not in st.session_state:
-            #     st.session_state.file_uploader_key_counter = 0
-
             with st.form(key="save_quote_form"):
                 try: kst_ex = pytz.timezone("Asia/Seoul"); now_ex_str = datetime.now(kst_ex).strftime('%y%m%d')
                 except Exception: now_ex_str = datetime.now().strftime('%y%m%d')
@@ -146,14 +138,14 @@ def render_tab1():
                 quote_base_name = f"{now_ex_str}-{phone_ex}"; example_json_fname = f"{quote_base_name}.json"
                 st.caption(f"JSON 파일명 형식: `{example_json_fname}`"); st.caption(f"사진 파일명 형식: `{quote_base_name}_사진1.png` 등 (중복 시 자동 이름 변경)")
 
-                # --- !!! 파일 업로더에서 key 파라미터 삭제 !!! ---
+                # --- !!! 파일 업로더에 고정 key 추가 !!! ---
                 uploaded_image_files_in_form = st.file_uploader(
                     "사진 첨부 (최대 5장):",
                     accept_multiple_files=True,
-                    type=['png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp']
-                    # key=uploader_key # <<< key 파라미터 삭제됨
+                    type=['png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp'],
+                    key="quote_image_uploader"  # <--- 수정된 부분: 고정 키 할당
                 )
-                # --- !!! key 삭제 완료 !!! ---
+                # --- !!! key 추가 완료 !!! ---
 
                 if uploaded_image_files_in_form and len(uploaded_image_files_in_form) > 5:
                     st.warning("⚠️ 사진은 최대 5장까지만 첨부 및 저장됩니다.", icon="⚠️")
@@ -204,8 +196,17 @@ def render_tab1():
                         try:
                             with st.spinner(f"🔄 '{json_filename}' 견적 데이터 저장 중..."):
                                 save_json_result = gdrive.save_json_file(json_filename, state_data_to_save)
-                            if save_json_result and save_json_result.get('id'): st.success(f"✅ '{json_filename}' 저장/업데이트 완료.")
-                            else: st.error(f"❌ '{json_filename}' 저장 중 오류 발생.")
+
+                            # --- !!! 수정된 부분: 성공 시 업로더 상태 초기화 !!! ---
+                            if save_json_result and save_json_result.get('id'):
+                                st.success(f"✅ '{json_filename}' 저장/업데이트 완료.")
+                                # 저장 성공 시 파일 업로더 상태 초기화 (선택적이지만 권장)
+                                if 'quote_image_uploader' in st.session_state:
+                                     st.session_state.quote_image_uploader = []
+                            else:
+                                st.error(f"❌ '{json_filename}' 저장 중 오류 발생.")
+                            # --- !!! 초기화 로직 추가 완료 !!! ---
+
                         except TypeError as json_err: st.error(f"❌ 저장 실패: 데이터를 JSON으로 변환 중 오류 발생 - {json_err}")
                         except Exception as save_err: st.error(f"❌ '{json_filename}' 파일 저장 중 예외 발생: {save_err}")
             # --- End Form ---
