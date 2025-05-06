@@ -1,4 +1,4 @@
-# state_manager.py (Removed file_uploader_key_counter)
+# state_manager.py (이미지 관련 상태 변수 제거)
 import streamlit as st
 from datetime import datetime, date
 import pytz
@@ -23,7 +23,7 @@ except Exception as e:
     MOVE_TYPE_OPTIONS = ["가정 이사 🏠", "사무실 이사 🏢"] # Fallback
     st.warning(f"data.py에서 이사 유형 로딩 중 오류 발생: {e}. 기본값을 사용합니다.")
 
-# STATE_KEYS_TO_SAVE 리스트 (customer_email 포함됨, 카운터는 원래 없었음)
+# STATE_KEYS_TO_SAVE 리스트 (이미지 관련 키 "gdrive_image_files" 제거)
 STATE_KEYS_TO_SAVE = [
     "base_move_type", "is_storage_move", "storage_type", "apply_long_distance",
     "customer_name", "customer_phone", "customer_email",
@@ -38,7 +38,7 @@ STATE_KEYS_TO_SAVE = [
     "remove_base_housewife",
     "prev_final_selected_vehicle",
     "dispatched_1t", "dispatched_2_5t", "dispatched_3_5t", "dispatched_5t",
-    "gdrive_image_files"
+    # "gdrive_image_files" # 제거됨
     # Item keys (qty_...) are added dynamically below
 ]
 
@@ -77,10 +77,8 @@ def initialize_session_state(update_basket_callback):
         "gdrive_selected_file_id": None,
         "base_move_type_widget_tab1": MOVE_TYPE_OPTIONS[0] if MOVE_TYPE_OPTIONS else "가정 이사 🏠",
         "base_move_type_widget_tab3": MOVE_TYPE_OPTIONS[0] if MOVE_TYPE_OPTIONS else "가정 이사 🏠",
-        # "uploaded_images": [], # 파일 업로더 상태 키는 직접 관리하지 않음
-        "gdrive_image_files": [],
-        "loaded_images": {},
-        # "file_uploader_key_counter": 0 # <<< 카운터 삭제됨
+        # "gdrive_image_files": [], # 제거됨
+        # "loaded_images": {}, # 제거됨
     }
     # Initialize state
     for key, value in defaults.items():
@@ -131,14 +129,15 @@ def initialize_session_state(update_basket_callback):
 def prepare_state_for_save():
     """Prepares the current session state for saving (e.g., to JSON)."""
     state_to_save = {}
+    # 이미지 관련 키 제외 확인 ('loaded_images')
     keys_to_exclude = {
         'base_move_type_widget_tab1', 'base_move_type_widget_tab3',
         'gdrive_selected_filename_widget',
-        # 'uploaded_images', # 파일 업로더 상태는 저장하지 않음
-        'loaded_images', 'pdf_data_customer', 'final_excel_data',
+        # 'loaded_images', # 제거됨
+        'pdf_data_customer', 'final_excel_data',
         'gdrive_search_results', 'gdrive_file_options_map',
-        # 'file_uploader_key_counter' # 카운터 삭제됨
     }
+    # STATE_KEYS_TO_SAVE 자체에서 gdrive_image_files가 제거되었으므로 여기서 추가 제외 불필요
     actual_keys_to_save = list(set(STATE_KEYS_TO_SAVE) - keys_to_exclude)
 
     for key in actual_keys_to_save:
@@ -164,11 +163,11 @@ def load_state_from_data(loaded_data, update_basket_callback):
     try: kst = pytz.timezone("Asia/Seoul"); default_date = datetime.now(kst).date()
     except Exception: default_date = datetime.now().date()
     current_move_type_options = globals().get('MOVE_TYPE_OPTIONS')
-    # Define defaults for recovery during load
+    # Define defaults for recovery during load (이미지 관련 키 제거됨)
     defaults_for_recovery = {
         "base_move_type": current_move_type_options[0] if current_move_type_options else "가정 이사 🏠",
         "is_storage_move": False, "storage_type": data.DEFAULT_STORAGE_TYPE if hasattr(data, 'DEFAULT_STORAGE_TYPE') else "컨테이너 보관 📦",
-        "apply_long_distance": False, "customer_name": "", "customer_phone": "", "customer_email": "", # Email default
+        "apply_long_distance": False, "customer_name": "", "customer_phone": "", "customer_email": "",
         "from_location": "", "to_location": "", "moving_date": default_date, "from_floor": "",
         "from_method": data.METHOD_OPTIONS[0] if hasattr(data, 'METHOD_OPTIONS') and data.METHOD_OPTIONS else "사다리차 🪜",
         "to_floor": "", "to_method": data.METHOD_OPTIONS[0] if hasattr(data, 'METHOD_OPTIONS') and data.METHOD_OPTIONS else "사다리차 🪜",
@@ -180,20 +179,22 @@ def load_state_from_data(loaded_data, update_basket_callback):
         "date_opt_0_widget": False, "date_opt_1_widget": False, "date_opt_2_widget": False, "date_opt_3_widget": False, "date_opt_4_widget": False,
         "deposit_amount": 0, "adjustment_amount": 0, "regional_ladder_surcharge": 0, "remove_base_housewife": False,
         "dispatched_1t": 0, "dispatched_2_5t": 0, "dispatched_3_5t": 0, "dispatched_5t": 0,
-        "gdrive_image_files": []
+        # "gdrive_image_files": [] # 제거됨
     }
     dynamic_keys = [key for key in STATE_KEYS_TO_SAVE if key.startswith("qty_")]
     for key in dynamic_keys:
         if key not in defaults_for_recovery: defaults_for_recovery[key] = 0
 
-    st.session_state.loaded_images = {} # 로드된 이미지 초기화
+    # st.session_state.loaded_images = {} # 로드된 이미지 초기화 제거
 
-    # --- Load loop ---
+    # --- Load loop (이미지 관련 키 처리 제거) ---
     int_keys = ["storage_duration", "sky_hours_from", "sky_hours_final", "add_men", "add_women", "deposit_amount", "adjustment_amount", "regional_ladder_surcharge", "dispatched_1t", "dispatched_2_5t", "dispatched_3_5t", "dispatched_5t"]
     float_keys = ["waste_tons_input"]; allow_negative_keys = ["adjustment_amount"]
     bool_keys = ["is_storage_move", "apply_long_distance", "has_waste_check", "remove_base_housewife", "date_opt_0_widget", "date_opt_1_widget", "date_opt_2_widget", "date_opt_3_widget", "date_opt_4_widget"]
-    list_keys = ["gdrive_image_files"]; load_success_count = 0; load_error_count = 0
-    all_expected_keys = list(set(STATE_KEYS_TO_SAVE))
+    # list_keys = ["gdrive_image_files"]; # 제거됨
+    list_keys = [] # list_keys 가 비어있도록 수정
+    load_success_count = 0; load_error_count = 0
+    all_expected_keys = list(set(STATE_KEYS_TO_SAVE)) # STATE_KEYS_TO_SAVE 에서 gdrive_image_files 가 제거됨
 
     for key in all_expected_keys:
         if key in loaded_data:
@@ -213,8 +214,9 @@ def load_state_from_data(loaded_data, update_basket_callback):
                 elif key in bool_keys:
                     if isinstance(value, str): target_value = value.lower() in ['true', 'yes', '1', 'on']
                     else: target_value = bool(value)
-                elif key in list_keys: target_value = list(value) if isinstance(value, list) else defaults_for_recovery.get(key, [])
-                else: target_value = value
+                elif key in list_keys: # 리스트 처리 (현재는 list_keys가 비어있음)
+                     target_value = list(value) if isinstance(value, list) else defaults_for_recovery.get(key, [])
+                else: target_value = value # 나머지 타입은 그대로 사용
                 st.session_state[key] = target_value; load_success_count += 1
             except (ValueError, TypeError, KeyError) as e:
                 load_error_count += 1; default_val = defaults_for_recovery.get(key); st.session_state[key] = default_val
@@ -223,11 +225,11 @@ def load_state_from_data(loaded_data, update_basket_callback):
 
     if load_error_count > 0: st.warning(f"일부 항목({load_error_count}개) 로딩 중 오류가 발생하여 기본값으로 설정되었거나 무시되었습니다.")
 
-    # Reset GDrive search state
+    # Reset GDrive search state (기존과 동일)
     st.session_state.gdrive_search_results = []; st.session_state.gdrive_file_options_map = {}
     st.session_state.gdrive_selected_filename = None; st.session_state.gdrive_selected_file_id = None
 
-    # Sync tab widget states
+    # Sync tab widget states (기존과 동일)
     if 'base_move_type' in st.session_state:
         loaded_move_type = st.session_state.base_move_type
         valid_move_type_options_load = globals().get('MOVE_TYPE_OPTIONS')
@@ -239,8 +241,5 @@ def load_state_from_data(loaded_data, update_basket_callback):
 
     # Update basket quantities based on loaded state
     update_basket_callback()
-
-    # === 파일 업로더 상태 관련 처리 불필요 ===
-    # 로드 후 파일 업로더 상태를 직접 초기화하지 않음
 
     return True # Indicate load attempt finished

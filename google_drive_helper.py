@@ -1,23 +1,21 @@
-# google_drive_helper.py (고유 파일명 생성 로직 추가)
+# google_drive_helper.py (이미지 저장 관련 함수 제거)
 
 import streamlit as st
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
-from googleapiclient.http import MediaIoBaseDownload, MediaIoBaseUpload, MediaFileUpload
+from googleapiclient.http import MediaIoBaseDownload, MediaIoBaseUpload # MediaFileUpload 제거
 import io
 import json
-import mimetypes # To guess image mime types
-import os # Needed for checking file path in upload and splitting names
-import time # For potential delays
-import traceback # For error logging
+# import mimetypes # 이미지 mime type 추측 불필요
+import os # 이름 분리 등에 여전히 필요할 수 있음
+# import time # 고유 파일명 찾기 지연 불필요
+import traceback # 오류 로깅 위해 유지
 
 # === Authentication and Service Object Creation ===
 @st.cache_resource # Cache the service object for efficiency
 def get_drive_service():
     """Connects to Google Drive API using service account credentials."""
     try:
-        # Use st.connection for newer Streamlit versions if applicable
-        # Example using secrets directly:
         if "gcp_service_account" not in st.secrets:
             st.error("Streamlit Secrets에 'gcp_service_account' 정보가 설정되지 않았습니다.")
             st.stop()
@@ -34,7 +32,7 @@ def get_drive_service():
         st.error(f"Google Drive 서비스 연결 중 오류 발생: {e}")
         st.stop()
 
-# === Download File Content (Generic Bytes) ===
+# === Download File Content (Generic Bytes) - JSON 로딩 위해 유지 ===
 def download_file_bytes(file_id):
     """Downloads the content of a file from Google Drive as bytes."""
     service = get_drive_service()
@@ -46,57 +44,50 @@ def download_file_bytes(file_id):
         done = False
         while not done:
             status, done = downloader.next_chunk()
-            # print( F"Download {int(status.progress() * 100)}%." ) # Optional progress
         fh.seek(0)
         return fh.getvalue()
     except Exception as e:
         st.error(f"파일 다운로드 중 오류 발생 (ID: {file_id}): {e}")
         return None
 
-# === Download JSON File Content (Specific helper) ===
+# === Download JSON File Content (Specific helper) - 유지 ===
 def download_json_file(file_id):
     """Downloads and decodes a JSON file."""
     file_bytes = download_file_bytes(file_id)
     if file_bytes:
         try:
-            # Try decoding with utf-8-sig first to handle potential BOM
-            return file_bytes.decode("utf-8-sig")
+            return file_bytes.decode("utf-8-sig") # BOM 처리 시도
         except UnicodeDecodeError:
             try:
-                 # Fallback to utf-8
-                 return file_bytes.decode("utf-8")
+                 return file_bytes.decode("utf-8") # 일반 utf-8 시도
             except UnicodeDecodeError:
                  st.error(f"다운로드된 파일(ID: {file_id})을 UTF-8로 디코딩하는 데 실패했습니다.")
                  return None
     return None
 
 
-# === Find File ID by Exact Name (Handles different mime types) ===
+# === Find File ID by Exact Name (JSON 검색 위해 유지, mime type 명시 제거 고려) ===
 def find_file_id_by_exact_name(exact_file_name, folder_id=None):
     """Finds a file ID by its exact name within a specific folder."""
     service = get_drive_service()
     if not service: return None
 
-    # Escape single quotes in the filename for the query
     escaped_file_name = exact_file_name.replace("'", "\\'")
-    query = f"name = '{escaped_file_name}' and trashed = false"
+    # mimeType 조건을 제거하여 모든 파일 형식을 찾도록 할 수 있음 (JSON 외 파일도 고려 시)
+    # query = f"name = '{escaped_file_name}' and mimeType = 'application/json' and trashed = false" # JSON만 검색 시
+    query = f"name = '{escaped_file_name}' and trashed = false" # 모든 파일 형식 검색 시
+
     if folder_id:
         query += f" and '{folder_id}' in parents"
-    else:
-        # If no folder_id, search in root or globally (adjust as needed)
-        # query += " and 'root' in parents" # Example: Search only root
-        pass # Search globally if no folder specified
 
     try:
-        # print(f"DEBUG [Drive]: Searching for file with query: {query}") # Debug print
         results = service.files().list(
             q=query,
             spaces='drive',
             fields='files(id, name)',
-            pageSize=1 # We only need to know if at least one exists
+            pageSize=1
         ).execute()
         items = results.get('files', [])
-        # print(f"DEBUG [Drive]: Found {len(items)} files matching exact name.") # Debug print
         return items[0].get('id') if items else None
     except Exception as e:
         st.error(f"정확한 파일 검색 오류 ('{exact_file_name}'): {e}")
@@ -104,126 +95,40 @@ def find_file_id_by_exact_name(exact_file_name, folder_id=None):
         traceback.print_exc()
         return None
 
-# === NEW HELPER: Find Unique Filename ===
-def find_unique_drive_filename(base_filename, extension, folder_id=None, max_attempts=100):
-    """
-    Checks if the desired filename exists on Google Drive and generates unique
-    alternatives by adding suffixes (_0001, _0002, ...) if needed.
-    """
-    original_filename = f"{base_filename}{extension}"
-    print(f"DEBUG [Drive]: Checking uniqueness for: '{original_filename}'")
+# === find_unique_drive_filename 함수 제거 ===
 
-    # Check if original filename exists
-    if not find_file_id_by_exact_name(original_filename, folder_id=folder_id):
-        print(f"DEBUG [Drive]: Filename '{original_filename}' is unique.")
-        return original_filename
+# === save_image_file 함수 제거 ===
 
-    # If original exists, find a unique alternative
-    print(f"DEBUG [Drive]: Filename '{original_filename}' exists. Finding unique name...")
-    for i in range(1, max_attempts + 1):
-        suffix = f"_{i:04d}" # Example: _0001, _0002 ... _9999
-        candidate_filename = f"{base_filename}{suffix}{extension}"
-        print(f"DEBUG [Drive]: Checking candidate: '{candidate_filename}'")
-        if not find_file_id_by_exact_name(candidate_filename, folder_id=folder_id):
-            print(f"DEBUG [Drive]: Found unique filename: '{candidate_filename}'")
-            return candidate_filename
-        # Optional: Small delay to avoid hitting API rate limits if checking many files
-        # time.sleep(0.05)
-
-    # If max attempts reached
-    error_msg = f"파일 저장 실패: '{base_filename}{extension}'에 대한 고유한 파일명을 찾을 수 없습니다 (최대 {max_attempts}번 시도)."
-    st.error(error_msg)
-    print(f"ERROR [Drive]: {error_msg}")
-    return None # Indicate failure
-
-# === MODIFIED save_image_file ===
-def save_image_file(desired_file_name, image_bytes, folder_id=None):
-    """
-    Saves image bytes as an image file on Google Drive, ensuring a unique filename
-    by adding sequential suffixes (_0001, _0002, ...) if the desired name exists.
-    Always creates a new file, does not update existing ones by name.
-    """
-    service = get_drive_service()
-    if not service:
-        return None # Service connection failed
-
-    # 1. Determine Mime Type and Base/Extension from the desired name
-    mime_type, _ = mimetypes.guess_type(desired_file_name)
-    base_name, extension = os.path.splitext(desired_file_name)
-
-    # Fallback mime type logic if guess fails or is not specific enough
-    if not mime_type or not mime_type.startswith('image/'):
-         ext_lower = extension.lower()
-         if ext_lower == '.png': mime_type = 'image/png'
-         elif ext_lower in ['.jpg', '.jpeg']: mime_type = 'image/jpeg'
-         elif ext_lower == '.gif': mime_type = 'image/gif'
-         elif ext_lower == '.bmp': mime_type = 'image/bmp'
-         elif ext_lower == '.webp': mime_type = 'image/webp'
-         else: mime_type = 'application/octet-stream' # Generic fallback
-         print(f"DEBUG [Drive]: Guessed mime type for '{desired_file_name}': {mime_type}")
-
-    # 2. Find a unique filename on Google Drive using the helper function
-    unique_filename = find_unique_drive_filename(base_name, extension, folder_id)
-
-    if not unique_filename:
-        # Error message already shown by find_unique_drive_filename
-        return None # Failed to find unique name
-
-    # 3. Upload the file with the unique name (using create, not update)
-    try:
-        fh = io.BytesIO(image_bytes)
-        media = MediaIoBaseUpload(fh, mimetype=mime_type, resumable=True)
-        file_metadata = {"name": unique_filename, "mimeType": mime_type}
-        if folder_id: file_metadata["parents"] = [folder_id]
-
-        print(f"DEBUG [Drive]: Uploading new file with unique name: '{unique_filename}'")
-        created_file = service.files().create(
-            body=file_metadata,
-            media_body=media,
-            fields="id, name" # Request ID and Name of the created file
-        ).execute()
-        print(f"DEBUG [Drive]: File uploaded successfully. ID: {created_file.get('id')}, Name: {created_file.get('name')}")
-
-        # Return dictionary containing the ID and the actual name used for saving
-        return {'id': created_file.get("id"), 'name': created_file.get('name'), 'status': 'created'}
-
-    except Exception as e:
-        st.error(f"Google Drive 파일 생성 오류 ('{unique_filename}'): {e}")
-        print(f"ERROR [Drive]: Failed to create file '{unique_filename}' on Drive: {e}")
-        traceback.print_exc()
-        return None
-
-# === JSON Save/Load (Keep existing logic - JSON usually overwrites) ===
+# === JSON Save/Load (기존 로직 유지) ===
 def save_json_file(file_name, data_dict, folder_id=None):
     """Saves a dictionary as a JSON file on Google Drive (Overwrites if exists)."""
     service = get_drive_service()
     if not service: return None
 
     try:
-        # Check if file exists to decide between create and update
+        # JSON 파일만 대상으로 찾도록 mimeType 지정 (선택적)
         existing_file_id = find_file_id_by_exact_name(file_name, folder_id=folder_id)
 
         json_string = json.dumps(data_dict, ensure_ascii=False, indent=2)
         json_bytes = json_string.encode('utf-8')
         fh = io.BytesIO(json_bytes)
+        # JSON 업로드는 application/json mime type 사용
         media = MediaIoBaseUpload(fh, mimetype="application/json", resumable=True)
-        file_metadata = {"name": file_name} # Mime type inferred by Drive usually
+        file_metadata = {"name": file_name} # Mime type은 여기서 지정 안해도 Drive가 추론 가능
 
         if folder_id: file_metadata["parents"] = [folder_id]
 
         if existing_file_id:
             print(f"DEBUG [Drive]: Updating existing JSON file: '{file_name}' (ID: {existing_file_id})")
-            # Use files().update to overwrite content
             updated_file = service.files().update(
                 fileId=existing_file_id,
-                # body=file_metadata, # Body can be minimal if just updating media
                 media_body=media,
                 fields="id, name"
             ).execute()
             return {'id': existing_file_id, 'name': updated_file.get('name'), 'status': 'updated'}
         else:
             print(f"DEBUG [Drive]: Creating new JSON file: '{file_name}'")
-            # Add mimeType for creation
+            # 새로 생성 시에는 mimeType 명시
             file_metadata["mimeType"] = "application/json"
             created_file = service.files().create(
                 body=file_metadata,
@@ -241,7 +146,7 @@ def save_json_file(file_name, data_dict, folder_id=None):
 
 def load_json_file(file_id):
     """Loads and parses a JSON file from Google Drive."""
-    json_string = download_json_file(file_id) # Assumes download_json_file exists and works
+    json_string = download_json_file(file_id)
     if json_string:
         try: return json.loads(json_string)
         except json.JSONDecodeError as e:
@@ -249,7 +154,7 @@ def load_json_file(file_id):
             return None
     return None
 
-# === Find files by name contains (Keep existing) ===
+# === Find files by name contains (유지) ===
 def find_files_by_name_contains(name_query, mime_types=None, folder_id=None):
     """Searches for files containing name_query, optionally filtering by mime types."""
     service = get_drive_service()
