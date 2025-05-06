@@ -85,7 +85,7 @@ def render_tab2():
 
     # --- Summary Section ---
     with st.container(border=True):
-        st.subheader("📊 현재 선택된 품목 및 예상 물량")
+        st.subheader("📊 선택 품목 및 예상 물량")
 
         # Gather selected items with quantity > 0
         move_selection_display = {}
