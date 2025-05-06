@@ -1,4 +1,4 @@
-# ui_tab1.py (Reset uploader state AFTER successful form submission)
+# ui_tab1.py (Removed disallowed state assignment)
 import streamlit as st
 from datetime import datetime, date
 import pytz
@@ -199,15 +199,20 @@ def render_tab1():
 
                             if save_json_result and save_json_result.get('id'):
                                 st.success(f"✅ '{json_filename}' 저장/업데이트 완료.")
-                                # --- !!! Reset Uploader State AFTER Successful Submit !!! ---
-                                if 'quote_image_uploader' in st.session_state:
-                                     st.session_state.quote_image_uploader = [] # Clear list of uploaded files
-                                # --- !!! Reset Added !!! ---
+                                # --- !!! REMOVED Disallowed State Assignment !!! ---
+                                # if 'quote_image_uploader' in st.session_state:
+                                #      st.session_state.quote_image_uploader = [] # This line is removed
+                                # --- !!! REMOVED !!! ---
                             else:
                                 st.error(f"❌ '{json_filename}' 저장 중 오류 발생.")
 
-                        except TypeError as json_err: st.error(f"❌ 저장 실패: 데이터를 JSON으로 변환 중 오류 발생 - {json_err}")
-                        except Exception as save_err: st.error(f"❌ '{json_filename}' 파일 저장 중 예외 발생: {save_err}")
+                        except TypeError as json_err:
+                            st.error(f"❌ 저장 실패: 데이터를 JSON으로 변환 중 오류 발생 - {json_err}")
+                            traceback.print_exc() # Print traceback for debugging
+                        except Exception as save_err:
+                            st.error(f"❌ '{json_filename}' 파일 저장 중 예외 발생: {save_err}")
+                            traceback.print_exc() # Print traceback for debugging
+
             # --- End Form ---
 
     st.divider()
