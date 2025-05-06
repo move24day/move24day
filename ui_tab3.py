@@ -1,10 +1,11 @@
-# ui_tab3.py
+# ui_tab3.py (요약 정보 표시 형식 수정됨)
 import streamlit as st
 import pandas as pd
 import io
 import pytz
 from datetime import datetime, date # date 추가
 import traceback # traceback 추가
+import re # 차량 톤수 추출 위해 추가
 
 # Import necessary custom modules
 try:
@@ -130,7 +131,8 @@ def render_tab3():
                                 current_index_widget = 0 # Default to first if error
                         else: # If current manual value is invalid for this move type, reset state to default
                             current_index_widget = 0
-                            st.session_state.manual_vehicle_select_value = available_trucks_widget[0]
+                            if available_trucks_widget: # Ensure list is not empty
+                                st.session_state.manual_vehicle_select_value = available_trucks_widget[0]
 
                         st.selectbox(
                             "수동으로 차량 선택:", # Label adjusted
@@ -159,7 +161,8 @@ def render_tab3():
                         except ValueError: current_index_widget = 0 # Default to first if error
                     else: # If current manual value is invalid for this move type, reset state to default
                         current_index_widget = 0
-                        st.session_state.manual_vehicle_select_value = available_trucks_widget[0]
+                        if available_trucks_widget: # Ensure list is not empty
+                             st.session_state.manual_vehicle_select_value = available_trucks_widget[0]
 
                     st.selectbox(
                         "차량 직접 선택:", # Label adjusted
@@ -309,7 +312,6 @@ def render_tab3():
     if final_selected_vehicle_calc:
         try:
             # Calculate costs based on current state
-            # Pass a dictionary copy to avoid potential modification issues if calculations were complex
             current_state_dict = st.session_state.to_dict()
             total_cost, cost_items, personnel_info = calculations.calculate_total_moving_cost(current_state_dict)
 
@@ -354,7 +356,9 @@ def render_tab3():
                 st.subheader("📝 고객요구사항")
                 st.info(special_notes_display) # Or st.text()
 
-            # Display Move Summary (using helper functions - simplified)
+            # ===========================================================
+            # Display Move Summary (using helper functions - MODIFIED)
+            # ===========================================================
             st.subheader("📋 이사 정보 요약")
             summary_generated = False
             try:
@@ -386,8 +390,8 @@ def render_tab3():
                         # Parse sheets, handling potential header issues
                         try:
                              # header=0 assumes first row is header. Adjust if needed.
-                             df_info = xls.parse("견적 정보", header=0)
-                             df_cost = xls.parse("비용 내역 및 요약", header=0)
+                             df_info = xls.parse("견적 정보", header=0) # Use header=0
+                             df_cost = xls.parse("비용 내역 및 요약", header=0) # Use header=0
                         except Exception as parse_err:
                              st.error(f"Excel 시트 파싱 오류: {parse_err}")
                              raise # Stop summary generation
@@ -396,7 +400,8 @@ def render_tab3():
                         info_dict = {}
                         if not df_info.empty and '항목' in df_info.columns and '내용' in df_info.columns:
                             try:
-                                info_dict = pd.Series(df_info.내용.values, index=df_info.항목).to_dict()
+                                # Use set_index for more robust conversion
+                                info_dict = df_info.set_index('항목')['내용'].to_dict()
                             except Exception as dict_conv_err:
                                 st.warning(f"견적 정보 시트 -> 사전 변환 오류: {dict_conv_err}")
                                 info_dict = {} # Use empty dict on failure
@@ -435,12 +440,22 @@ def render_tab3():
                              if "스카이" in m_str: return "스카이"
                              return "?"
 
-                        # Extract and format data safely using .get with defaults
+                        # ----- Extract data for summary display (MODIFIED PART) -----
+                        customer_name = str(info_dict.get("고객명", st.session_state.get('customer_name',''))) # 고객명 추출
                         from_addr = format_address(info_dict.get("출발지", st.session_state.get('from_location','')))
                         to_addr = format_address(info_dict.get("도착지", st.session_state.get('to_location','')))
                         phone = info_dict.get("고객 연락처", st.session_state.get('customer_phone',''))
                         vehicle_type = final_selected_vehicle_calc # Already checked if it exists
                         note = format_address(info_dict.get("고객요구사항", st.session_state.get('special_notes','')))
+
+                        # Extract Tonnage from vehicle_type (assuming format like "5톤", "2.5톤")
+                        vehicle_tonnage = ""
+                        if isinstance(vehicle_type, str):
+                             match = re.search(r'(\d+(\.\d+)?\s*톤)', vehicle_type)
+                             if match:
+                                 vehicle_tonnage = match.group(1).strip()
+                             else: # Fallback if '톤' is missing but name exists
+                                 vehicle_tonnage = vehicle_type # Use full name as fallback
 
                         p_info = personnel_info if isinstance(personnel_info, dict) else {}
                         men = p_info.get('final_men', 0)
@@ -453,7 +468,7 @@ def render_tab3():
                         try: # Safely get quantities
                              if move_t: # Check if move type is set
                                  q_b = int(st.session_state.get(f"qty_{move_t}_{b_name}_바구니", 0))
-                                 q_m = int(st.session_state.get(f"qty_{move_t}_{b_name}_중자바구니", 0)) # Or 중자바구니? Check data.py
+                                 q_m = int(st.session_state.get(f"qty_{move_t}_{b_name}_중자바구니", 0)) # data.py 에 정의된 이름 사용
                                  q_k = int(st.session_state.get(f"qty_{move_t}_{b_name}_책바구니", 0))
                                  q_mb = int(st.session_state.get(f"qty_{move_t}_{b_name}_중박스", 0)) # Get 중박스 too
                         except (ValueError, TypeError) as qty_err:
@@ -462,8 +477,8 @@ def render_tab3():
                         # Build basket string conditionally
                         bask_parts = []
                         if q_b > 0: bask_parts.append(f"바{q_b}")
-                        if q_m > 0: bask_parts.append(f"중자{q_m}") # 중자바구니
-                        if q_mb > 0: bask_parts.append(f"중박{q_mb}") # 중박스
+                        if q_m > 0: bask_parts.append(f"중자{q_m}") # Use correct name
+                        if q_mb > 0: bask_parts.append(f"중박{q_mb}")
                         if q_k > 0: bask_parts.append(f"책{q_k}")
                         bask = " ".join(bask_parts)
 
@@ -474,15 +489,22 @@ def render_tab3():
                         w_to = format_method(info_dict.get("도착 작업", st.session_state.get('to_method','')))
                         work = f"출{w_from}도{w_to}"
 
-                        # Display using st.text, ensure values are strings
-                        st.text(f"{str(from_addr)} -> {str(to_addr)}"); st.text("")
+                        # ----- Display using st.text (MODIFIED FORMAT) -----
+                        st.text(f"{str(from_addr)} -> {str(to_addr)} {vehicle_tonnage}"); st.text("") # Line 1: Addr -> Addr Tonnage
+                        if customer_name: st.text(f"{customer_name}"); st.text("")       # Line 2: Customer Name
                         phone_str = str(phone)
-                        if phone_str and phone_str != '-': st.text(f"{phone_str}"); st.text("")
-                        st.text(f"{str(vehicle_type)} | {str(ppl)}"); st.text("")
-                        if bask: st.text(bask); st.text("")
-                        st.text(str(work)); st.text("")
-                        st.text(f"{str(cont_fee)} / {str(rem_fee)}"); st.text("")
-                        if note: st.text(f"{str(note)}")
+                        if phone_str and phone_str != '-': st.text(f"{phone_str}"); st.text("") # Line 3: Phone
+                        st.text(f"{str(vehicle_type)} | {str(ppl)}"); st.text("")      # Line 4: Vehicle | Personnel
+                        if from_addr: st.text(f"{from_addr}"); st.text("")              # Line 5: From Address again
+                        if to_addr: st.text(f"{to_addr}"); st.text("")                # Line 6: To Address again
+                        if bask: st.text(bask); st.text("")                           # Line 7: Baskets
+                        st.text(str(work)); st.text("")                               # Line 8: Work Method
+                        st.text(f"{str(cont_fee)} / {str(rem_fee)}"); st.text("")      # Line 9: Fees
+                        if note:                                                        # Line 10+: Notes (split by '.')
+                             notes_list = [n.strip() for n in note.split('.') if n.strip()]
+                             for note_line in notes_list:
+                                 st.text(note_line)
+                        # ----- Display End -----
 
                         summary_generated = True
                     else:
@@ -494,6 +516,9 @@ def render_tab3():
                 traceback.print_exc() # Print detailed traceback for debugging
             if not summary_generated:
                 st.info("ℹ️ 요약 정보를 표시할 수 없습니다.")
+            # ===========================================================
+            # End of Summary Section
+            # ===========================================================
 
             st.divider()
 
