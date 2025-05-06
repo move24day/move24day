@@ -1,4 +1,4 @@
-# state_manager.py (Added file_uploader_key_counter)
+# state_manager.py (Removed file_uploader_key_counter)
 import streamlit as st
 from datetime import datetime, date
 import pytz
@@ -23,10 +23,10 @@ except Exception as e:
     MOVE_TYPE_OPTIONS = ["가정 이사 🏠", "사무실 이사 🏢"] # Fallback
     st.warning(f"data.py에서 이사 유형 로딩 중 오류 발생: {e}. 기본값을 사용합니다.")
 
-# STATE_KEYS_TO_SAVE 리스트 (customer_email 포함)
+# STATE_KEYS_TO_SAVE 리스트 (customer_email 포함됨, 카운터는 원래 없었음)
 STATE_KEYS_TO_SAVE = [
     "base_move_type", "is_storage_move", "storage_type", "apply_long_distance",
-    "customer_name", "customer_phone", "customer_email", # 이메일 키 포함됨
+    "customer_name", "customer_phone", "customer_email",
     "from_location", "to_location", "moving_date",
     "from_floor", "from_method", "to_floor", "to_method", "special_notes",
     "storage_duration", "long_distance_selector", "vehicle_select_radio",
@@ -40,7 +40,6 @@ STATE_KEYS_TO_SAVE = [
     "dispatched_1t", "dispatched_2_5t", "dispatched_3_5t", "dispatched_5t",
     "gdrive_image_files"
     # Item keys (qty_...) are added dynamically below
-    # 'file_uploader_key_counter'는 저장/로드 대상이 아님 (런타임에서만 사용)
 ]
 
 
@@ -78,25 +77,22 @@ def initialize_session_state(update_basket_callback):
         "gdrive_selected_file_id": None,
         "base_move_type_widget_tab1": MOVE_TYPE_OPTIONS[0] if MOVE_TYPE_OPTIONS else "가정 이사 🏠",
         "base_move_type_widget_tab3": MOVE_TYPE_OPTIONS[0] if MOVE_TYPE_OPTIONS else "가정 이사 🏠",
-        # "uploaded_images": [], # This key might be unnecessary if using dynamic key below
+        # "uploaded_images": [], # 파일 업로더 상태 키는 직접 관리하지 않음
         "gdrive_image_files": [],
         "loaded_images": {},
-        "file_uploader_key_counter": 0 # <<< 파일 업로더 리셋용 카운터 추가
+        # "file_uploader_key_counter": 0 # <<< 카운터 삭제됨
     }
     # Initialize state
     for key, value in defaults.items():
         if key not in st.session_state:
             st.session_state[key] = value
 
-    # Sync widget states
-    if 'base_move_type' not in st.session_state:
-         st.session_state.base_move_type = defaults['base_move_type']
-    if st.session_state.base_move_type_widget_tab1 != st.session_state.base_move_type:
-        st.session_state.base_move_type_widget_tab1 = st.session_state.base_move_type
-    if st.session_state.base_move_type_widget_tab3 != st.session_state.base_move_type:
-        st.session_state.base_move_type_widget_tab3 = st.session_state.base_move_type
+    # Sync widget states (기존과 동일)
+    if 'base_move_type' not in st.session_state: st.session_state.base_move_type = defaults['base_move_type']
+    if st.session_state.base_move_type_widget_tab1 != st.session_state.base_move_type: st.session_state.base_move_type_widget_tab1 = st.session_state.base_move_type
+    if st.session_state.base_move_type_widget_tab3 != st.session_state.base_move_type: st.session_state.base_move_type_widget_tab3 = st.session_state.base_move_type
 
-    # Type conversion
+    # Type conversion (기존과 동일)
     int_keys = ["storage_duration", "sky_hours_from", "sky_hours_final", "add_men", "add_women", "deposit_amount", "adjustment_amount", "regional_ladder_surcharge", "dispatched_1t", "dispatched_2_5t", "dispatched_3_5t", "dispatched_5t"]
     float_keys = ["waste_tons_input"]; allow_negative_keys = ["adjustment_amount"]
     for k in int_keys + float_keys:
@@ -113,7 +109,7 @@ def initialize_session_state(update_basket_callback):
         except (ValueError, TypeError): st.session_state[k] = default_val_k
         except KeyError: st.session_state[k] = 0 if k in int_keys else 0.0
 
-    # Dynamically initialize item keys and add to save list
+    # Dynamically initialize item keys (기존과 동일)
     global STATE_KEYS_TO_SAVE; processed_init_keys = set(); item_keys_to_save = []
     if hasattr(data, 'item_definitions') and data.item_definitions:
         for move_type, sections in data.item_definitions.items():
@@ -138,10 +134,10 @@ def prepare_state_for_save():
     keys_to_exclude = {
         'base_move_type_widget_tab1', 'base_move_type_widget_tab3',
         'gdrive_selected_filename_widget',
-        # 'uploaded_images', # This key was likely related to file uploader state - exclude
+        # 'uploaded_images', # 파일 업로더 상태는 저장하지 않음
         'loaded_images', 'pdf_data_customer', 'final_excel_data',
         'gdrive_search_results', 'gdrive_file_options_map',
-        'file_uploader_key_counter' # Exclude runtime counter from saving
+        # 'file_uploader_key_counter' # 카운터 삭제됨
     }
     actual_keys_to_save = list(set(STATE_KEYS_TO_SAVE) - keys_to_exclude)
 
@@ -190,16 +186,14 @@ def load_state_from_data(loaded_data, update_basket_callback):
     for key in dynamic_keys:
         if key not in defaults_for_recovery: defaults_for_recovery[key] = 0
 
-    # Clear previous runtime image display data
-    st.session_state.loaded_images = {}
-    # Do NOT reset file uploader related state here
+    st.session_state.loaded_images = {} # 로드된 이미지 초기화
 
     # --- Load loop ---
     int_keys = ["storage_duration", "sky_hours_from", "sky_hours_final", "add_men", "add_women", "deposit_amount", "adjustment_amount", "regional_ladder_surcharge", "dispatched_1t", "dispatched_2_5t", "dispatched_3_5t", "dispatched_5t"]
     float_keys = ["waste_tons_input"]; allow_negative_keys = ["adjustment_amount"]
     bool_keys = ["is_storage_move", "apply_long_distance", "has_waste_check", "remove_base_housewife", "date_opt_0_widget", "date_opt_1_widget", "date_opt_2_widget", "date_opt_3_widget", "date_opt_4_widget"]
     list_keys = ["gdrive_image_files"]; load_success_count = 0; load_error_count = 0
-    all_expected_keys = list(set(STATE_KEYS_TO_SAVE)) # Use defined keys to load
+    all_expected_keys = list(set(STATE_KEYS_TO_SAVE))
 
     for key in all_expected_keys:
         if key in loaded_data:
@@ -220,12 +214,12 @@ def load_state_from_data(loaded_data, update_basket_callback):
                     if isinstance(value, str): target_value = value.lower() in ['true', 'yes', '1', 'on']
                     else: target_value = bool(value)
                 elif key in list_keys: target_value = list(value) if isinstance(value, list) else defaults_for_recovery.get(key, [])
-                else: target_value = value # Handles strings like customer_email, customer_name etc.
+                else: target_value = value
                 st.session_state[key] = target_value; load_success_count += 1
             except (ValueError, TypeError, KeyError) as e:
                 load_error_count += 1; default_val = defaults_for_recovery.get(key); st.session_state[key] = default_val
                 print(f"Warning: Error loading key '{key}' (Value: {original_value}, Type: {type(original_value)}). Error: {e}. Used default: {default_val}")
-        # else: Keys missing in loaded data will retain their initialized default value
+        # else: 키가 없으면 기본값 유지
 
     if load_error_count > 0: st.warning(f"일부 항목({load_error_count}개) 로딩 중 오류가 발생하여 기본값으로 설정되었거나 무시되었습니다.")
 
@@ -238,12 +232,15 @@ def load_state_from_data(loaded_data, update_basket_callback):
         loaded_move_type = st.session_state.base_move_type
         valid_move_type_options_load = globals().get('MOVE_TYPE_OPTIONS')
         if not isinstance(loaded_move_type, str) or (valid_move_type_options_load and loaded_move_type not in valid_move_type_options_load):
-             loaded_move_type = valid_move_type_options_load[0] if valid_move_type_options_load else "가정 이사 🏠" # Fallback
+             loaded_move_type = valid_move_type_options_load[0] if valid_move_type_options_load else "가정 이사 🏠"
              st.session_state.base_move_type = loaded_move_type
         st.session_state.base_move_type_widget_tab1 = loaded_move_type
         st.session_state.base_move_type_widget_tab3 = loaded_move_type
 
     # Update basket quantities based on loaded state
     update_basket_callback()
+
+    # === 파일 업로더 상태 관련 처리 불필요 ===
+    # 로드 후 파일 업로더 상태를 직접 초기화하지 않음
 
     return True # Indicate load attempt finished

@@ -1,4 +1,4 @@
-# ui_tab1.py (Using dynamic key for file_uploader, increment counter on load)
+# ui_tab1.py (Removed file_uploader key and related counter logic)
 import streamlit as st
 from datetime import datetime, date
 import pytz
@@ -79,7 +79,7 @@ def render_tab1():
                  if st.session_state.gdrive_selected_filename and not st.session_state.gdrive_selected_file_id and on_change_callback_gdrive:
                      on_change_callback_gdrive()
 
-            # Load button logic (Modified: Increment counter on success, no rerun)
+            # Load button logic (Removed counter increment)
             load_button_disabled = not bool(st.session_state.get('gdrive_selected_file_id'))
             if st.button("📂 선택 견적 불러오기", disabled=load_button_disabled, key="load_gdrive_btn"):
                 json_file_id = st.session_state.gdrive_selected_file_id
@@ -125,38 +125,35 @@ def render_tab1():
                                 if loaded_count != num_images: st.warning(f"⚠️ {num_images - loaded_count}개 이미지 로딩 실패 또는 찾을 수 없음.")
                             # --- 이미지 로딩 로직 끝 ---
 
-                            # --- !!! 파일 업로더 리셋을 위해 키 카운터 증가 !!! ---
-                            st.session_state.file_uploader_key_counter = st.session_state.get('file_uploader_key_counter', 0) + 1
-                            st.info("견적 로딩 완료. 파일 첨부 영역이 초기화됩니다.")
-                            # --- !!! 카운터 증가 완료 (st.rerun 제거됨) ---
+                            # --- !!! 카운터 증가 및 rerun 로직 삭제됨 !!! ---
 
-                        # else: load_state_from_data 실패 시 함수 내에서 오류 처리됨
+                        # else: load_state_from_data 실패 처리 (함수 내)
                     else:
                          st.error("❌ 선택된 JSON 파일 내용을 불러오는 데 실패했습니다.")
+
 
         # --- Save Section ---
         with col_save:
             st.markdown("**현재 견적 저장**")
-            # 파일 업로더 키 카운터가 session_state에 있는지 확인 (초기화 보장)
-            if 'file_uploader_key_counter' not in st.session_state:
-                st.session_state.file_uploader_key_counter = 0
+            # 카운터 확인 로직 삭제됨
+            # if 'file_uploader_key_counter' not in st.session_state:
+            #     st.session_state.file_uploader_key_counter = 0
 
-            with st.form(key="save_quote_form"): # 폼 키는 정적으로 유지
+            with st.form(key="save_quote_form"):
                 try: kst_ex = pytz.timezone("Asia/Seoul"); now_ex_str = datetime.now(kst_ex).strftime('%y%m%d')
                 except Exception: now_ex_str = datetime.now().strftime('%y%m%d')
                 phone_ex = utils.extract_phone_number_part(st.session_state.get('customer_phone', ''), length=4, default="XXXX")
                 quote_base_name = f"{now_ex_str}-{phone_ex}"; example_json_fname = f"{quote_base_name}.json"
                 st.caption(f"JSON 파일명 형식: `{example_json_fname}`"); st.caption(f"사진 파일명 형식: `{quote_base_name}_사진1.png` 등 (중복 시 자동 이름 변경)")
 
-                # --- !!! 파일 업로더에 동적 key 부여 !!! ---
-                uploader_key = f"quote_images_uploader_{st.session_state.file_uploader_key_counter}"
+                # --- !!! 파일 업로더에서 key 파라미터 삭제 !!! ---
                 uploaded_image_files_in_form = st.file_uploader(
                     "사진 첨부 (최대 5장):",
                     accept_multiple_files=True,
-                    type=['png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp'],
-                    key=uploader_key # 동적 키 사용
+                    type=['png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp']
+                    # key=uploader_key # <<< key 파라미터 삭제됨
                 )
-                # --- !!! key 부여 완료 !!! ---
+                # --- !!! key 삭제 완료 !!! ---
 
                 if uploaded_image_files_in_form and len(uploaded_image_files_in_form) > 5:
                     st.warning("⚠️ 사진은 최대 5장까지만 첨부 및 저장됩니다.", icon="⚠️")
