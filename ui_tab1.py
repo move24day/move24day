@@ -1,4 +1,4 @@
-# ui_tab1.py (Added st.rerun() after successful load)
+# ui_tab1.py (Using dynamic key for file_uploader, increment counter on load)
 import streamlit as st
 from datetime import datetime, date
 import pytz
@@ -13,11 +13,10 @@ try:
     import google_drive_helper as gdrive # Use alias
     from state_manager import (
         MOVE_TYPE_OPTIONS,
-        # STATE_KEYS_TO_SAVE, # Usually not needed directly in UI files
         prepare_state_for_save,
         load_state_from_data
     )
-    import callbacks # Callbacks needed for on_change etc.
+    import callbacks # Ensure callbacks module exists and has necessary functions
 except ImportError as ie:
     st.error(f"UI Tab 1: 필수 모듈 로딩 실패 - {ie}")
     st.stop()
@@ -80,7 +79,7 @@ def render_tab1():
                  if st.session_state.gdrive_selected_filename and not st.session_state.gdrive_selected_file_id and on_change_callback_gdrive:
                      on_change_callback_gdrive()
 
-            # Load button logic (with st.rerun() added on success)
+            # Load button logic (Modified: Increment counter on success, no rerun)
             load_button_disabled = not bool(st.session_state.get('gdrive_selected_file_id'))
             if st.button("📂 선택 견적 불러오기", disabled=load_button_disabled, key="load_gdrive_btn"):
                 json_file_id = st.session_state.gdrive_selected_file_id
@@ -98,9 +97,8 @@ def render_tab1():
 
                         if load_success:
                             st.success("✅ 견적 데이터 로딩 완료.")
+                            # --- 이미지 로딩 로직 시작 ---
                             image_filenames_to_load = st.session_state.get("gdrive_image_files", [])
-
-                            # Load associated images if filenames exist
                             if image_filenames_to_load:
                                 st.session_state.loaded_images = {}
                                 num_images = len(image_filenames_to_load)
@@ -125,35 +123,40 @@ def render_tab1():
                                 img_load_bar.empty()
                                 if loaded_count > 0: st.success(f"✅ 이미지 {loaded_count}개 로딩 완료.")
                                 if loaded_count != num_images: st.warning(f"⚠️ {num_images - loaded_count}개 이미지 로딩 실패 또는 찾을 수 없음.")
-                            # else: No images listed in JSON
+                            # --- 이미지 로딩 로직 끝 ---
 
-                            # --- !!! 로드 성공 후 페이지 새로고침 추가 !!! ---
-                            # 목적: 파일 업로더 등 위젯 상태를 새로 로드된 상태 기준으로 초기화하여
-                            #       StreamlitAPIException (enforce_filename_restriction) 방지 시도
-                            st.info("견적 로딩 완료. 화면을 갱신합니다...")
-                            time.sleep(0.5) # 메시지 표시 시간 약간 확보
-                            st.rerun()
-                            # --- !!! 추가 완료 --- !!!
+                            # --- !!! 파일 업로더 리셋을 위해 키 카운터 증가 !!! ---
+                            st.session_state.file_uploader_key_counter = st.session_state.get('file_uploader_key_counter', 0) + 1
+                            st.info("견적 로딩 완료. 파일 첨부 영역이 초기화됩니다.")
+                            # --- !!! 카운터 증가 완료 (st.rerun 제거됨) ---
 
-                        # else: load_state_from_data failed, error shown inside function
+                        # else: load_state_from_data 실패 시 함수 내에서 오류 처리됨
                     else:
                          st.error("❌ 선택된 JSON 파일 내용을 불러오는 데 실패했습니다.")
-
 
         # --- Save Section ---
         with col_save:
             st.markdown("**현재 견적 저장**")
-            with st.form(key="save_quote_form"):
+            # 파일 업로더 키 카운터가 session_state에 있는지 확인 (초기화 보장)
+            if 'file_uploader_key_counter' not in st.session_state:
+                st.session_state.file_uploader_key_counter = 0
+
+            with st.form(key="save_quote_form"): # 폼 키는 정적으로 유지
                 try: kst_ex = pytz.timezone("Asia/Seoul"); now_ex_str = datetime.now(kst_ex).strftime('%y%m%d')
                 except Exception: now_ex_str = datetime.now().strftime('%y%m%d')
                 phone_ex = utils.extract_phone_number_part(st.session_state.get('customer_phone', ''), length=4, default="XXXX")
                 quote_base_name = f"{now_ex_str}-{phone_ex}"; example_json_fname = f"{quote_base_name}.json"
                 st.caption(f"JSON 파일명 형식: `{example_json_fname}`"); st.caption(f"사진 파일명 형식: `{quote_base_name}_사진1.png` 등 (중복 시 자동 이름 변경)")
 
+                # --- !!! 파일 업로더에 동적 key 부여 !!! ---
+                uploader_key = f"quote_images_uploader_{st.session_state.file_uploader_key_counter}"
                 uploaded_image_files_in_form = st.file_uploader(
-                    "사진 첨부 (최대 5장):", accept_multiple_files=True,
-                    type=['png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp']
+                    "사진 첨부 (최대 5장):",
+                    accept_multiple_files=True,
+                    type=['png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp'],
+                    key=uploader_key # 동적 키 사용
                 )
+                # --- !!! key 부여 완료 !!! ---
 
                 if uploaded_image_files_in_form and len(uploaded_image_files_in_form) > 5:
                     st.warning("⚠️ 사진은 최대 5장까지만 첨부 및 저장됩니다.", icon="⚠️")
