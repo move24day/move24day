@@ -1,16 +1,15 @@
-# pdf_generator.py (문법 오류 가능성 수정 및 안정화 시도)
+# pdf_generator.py (세미콜론 제거, 컬럼 너비 계산 로직 수정 반영)
 
 import pandas as pd
 import io
 import streamlit as st
 import traceback
-import utils # utils.py 필요 (get_item_qty, get_current_kst_time_str 사용)
+import utils # utils.py 필요
 import data # data.py 필요
 import os
-from datetime import date
+from datetime import date, datetime # datetime 추가
 
 # --- ReportLab 관련 모듈 임포트 ---
-# ReportLab 모듈이 설치되어 있어야 합니다.
 try:
     from reportlab.pdfgen import canvas
     from reportlab.lib.pagesizes import A4
@@ -18,11 +17,11 @@ try:
     from reportlab.pdfbase import pdfmetrics
     from reportlab.pdfbase.ttfonts import TTFont
     from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-    from reportlab.platypus import Paragraph, Spacer # Spacer는 현재 사용되지 않음
+    from reportlab.platypus import Paragraph, Spacer
     from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
     _REPORTLAB_AVAILABLE = True
 except ImportError as reportlab_error:
-    st.error(f"ReportLab 라이브러리를 찾을 수 없습니다. 설치가 필요합니다: {reportlab_error}")
+    st.error(f"ReportLab 라이브러리를 찾을 수 없습니다: {reportlab_error}")
     print(f"ERROR [PDF]: ReportLab not found. PDF generation disabled. {reportlab_error}")
     _REPORTLAB_AVAILABLE = False
 
@@ -33,33 +32,34 @@ COMPANY_PHONE_2 = "1577-3101"
 COMPANY_EMAIL = "move24day@gmail.com"
 
 # --- 폰트 경로 설정 ---
-NANUM_GOTHIC_FONT_PATH = "NanumGothic.ttf" # 앱 루트에 폰트 파일 위치 가정
+NANUM_GOTHIC_FONT_PATH = "NanumGothic.ttf"
 
 # --- PDF 생성 함수 ---
 def generate_pdf(state_data, calculated_cost_items, total_cost, personnel_info):
     """주어진 데이터를 기반으로 견적서 PDF를 생성합니다."""
     print("--- DEBUG [PDF]: Starting generate_pdf function ---")
-    if not _REPORTLAB_AVAILABLE: # ReportLab 로드 실패 시 함수 종료
+    if not _REPORTLAB_AVAILABLE:
         st.error("PDF 생성을 위한 ReportLab 라이브러리가 없어 PDF를 생성할 수 없습니다.")
         return None
 
     buffer = io.BytesIO()
     try:
         # --- 폰트 파일 확인 및 등록 ---
-        if not os.path.exists(NANUM_GOTHIC_FONT_PATH):
-            st.error(f"PDF 생성 오류: 폰트 파일 '{NANUM_GOTHIC_FONT_PATH}'을(를) 찾을 수 없습니다.")
-            print(f"ERROR [PDF]: Font file not found at '{NANUM_GOTHIC_FONT_PATH}'")
+        font_path = NANUM_GOTHIC_FONT_PATH
+        if not os.path.exists(font_path):
+            st.error(f"PDF 생성 오류: 폰트 파일 '{font_path}'을(를) 찾을 수 없습니다.")
+            print(f"ERROR [PDF]: Font file not found at '{font_path}'")
             return None
         try:
             if 'NanumGothic' not in pdfmetrics.getRegisteredFontNames():
-                pdfmetrics.registerFont(TTFont('NanumGothic', NANUM_GOTHIC_FONT_PATH))
-                pdfmetrics.registerFont(TTFont('NanumGothicBold', NANUM_GOTHIC_FONT_PATH))
-                print("DEBUG [PDF]: NanumGothic font registered successfully.")
+                pdfmetrics.registerFont(TTFont('NanumGothic', font_path))
+                pdfmetrics.registerFont(TTFont('NanumGothicBold', font_path))
+                print("DEBUG [PDF]: NanumGothic font registered.")
             else:
                 print("DEBUG [PDF]: NanumGothic font already registered.")
         except Exception as font_e:
-            st.error(f"PDF 생성 오류: 폰트 로딩/등록 실패 ('{NANUM_GOTHIC_FONT_PATH}'). 상세: {font_e}")
-            print(f"ERROR [PDF]: Failed to load/register font '{NANUM_GOTHIC_FONT_PATH}': {font_e}")
+            st.error(f"PDF 생성 오류: 폰트 로딩/등록 실패 ('{font_path}'). 상세: {font_e}")
+            print(f"ERROR [PDF]: Failed to load/register font '{font_path}': {font_e}")
             traceback.print_exc()
             return None
 
@@ -91,16 +91,36 @@ def generate_pdf(state_data, calculated_cost_items, total_cost, personnel_info):
 
         # --- 기본 정보 그리기 ---
         c.setFont('NanumGothic', 11); is_storage = state_data.get('is_storage_move')
-        kst_date_str = utils.get_current_kst_time_str("%Y-%m-%d") if utils else datetime.now().strftime("%Y-%m-%d")
-        info_pairs = [ ("고 객 명:", state_data.get('customer_name', '-')), ("연 락 처:", state_data.get('customer_phone', '-')), ("이 사 일:", str(state_data.get('moving_date', '-'))), ("견 적 일:", kst_date_str), ("출 발 지:", state_data.get('from_location', '-')), ("도 착 지:", state_data.get('to_location', '-')) ]
-        if is_storage: default_storage = data.DEFAULT_STORAGE_TYPE if data and hasattr(data, 'DEFAULT_STORAGE_TYPE') else "-"; info_pairs.append(("보관 기간:", f"{state_data.get('storage_duration', 1)} 일")); info_pairs.append(("보관 유형:", state_data.get('storage_type', default_storage)))
-        p_info = personnel_info if isinstance(personnel_info, dict) else {}; final_men = p_info.get('final_men', 0); final_women = p_info.get('final_women', 0); personnel_text = f"남성 {final_men}명" + (f", 여성 {final_women}명" if final_women > 0 else ""); info_pairs.append(("작업 인원:", personnel_text)); info_pairs.append(("선택 차량:", state_data.get('final_selected_vehicle', '미선택')))
+        kst_date_str = utils.get_current_kst_time_str("%Y-%m-%d") if utils and hasattr(utils, 'get_current_kst_time_str') else datetime.now().strftime("%Y-%m-%d")
+        customer_name = state_data.get('customer_name', '-')
+        customer_phone = state_data.get('customer_phone', '-')
+        moving_date_str = str(state_data.get('moving_date', '-'))
+        from_location = state_data.get('from_location', '-')
+        to_location = state_data.get('to_location', '-')
+        storage_duration_str = f"{state_data.get('storage_duration', 1)} 일"
+        storage_type = state_data.get('storage_type', data.DEFAULT_STORAGE_TYPE if data and hasattr(data, 'DEFAULT_STORAGE_TYPE') else "-")
+        p_info = personnel_info if isinstance(personnel_info, dict) else {}; final_men = p_info.get('final_men', 0); final_women = p_info.get('final_women', 0); personnel_text = f"남성 {final_men}명" + (f", 여성 {final_women}명" if final_women > 0 else "")
+        selected_vehicle = state_data.get('final_selected_vehicle', '미선택')
+
+        info_pairs = [
+            ("고 객 명:", customer_name), ("연 락 처:", customer_phone),
+            ("이 사 일:", moving_date_str), ("견 적 일:", kst_date_str),
+            ("출 발 지:", from_location), ("도 착 지:", to_location)
+        ]
+        if is_storage:
+            info_pairs.append(("보관 기간:", storage_duration_str))
+            info_pairs.append(("보관 유형:", storage_type))
+        info_pairs.append(("작업 인원:", personnel_text))
+        info_pairs.append(("선택 차량:", selected_vehicle))
+
         value_style = ParagraphStyle(name='InfoValueStyle', fontName='NanumGothic', fontSize=11, leading=13); label_width = 3 * cm; value_x = margin_x + label_width; value_max_width = width - value_x - margin_x
         for label, value in info_pairs:
              value_para = Paragraph(str(value), value_style); value_para_width, value_para_height = value_para.wrapOn(c, value_max_width, line_height * 3); row_height = max(line_height, value_para_height + 0.1*cm)
              if current_y - row_height < margin_y: c.showPage(); page_number += 1; draw_page_template(c, page_number); current_y = height - margin_y - 1*cm; c.setFont('NanumGothic', 11)
-             c.drawString(margin_x, current_y - row_height + (row_height - 11) / 2 + 2, label) # 라벨 위치 조정
-             value_para.drawOn(c, value_x, current_y - row_height + (row_height - value_para_height)/2); current_y -= row_height
+             label_y_pos = current_y - row_height + (row_height - 11) / 2 + 2
+             c.drawString(margin_x, label_y_pos, label)
+             para_y_pos = current_y - row_height + (row_height - value_para_height) / 2
+             value_para.drawOn(c, value_x, para_y_pos); current_y -= row_height
         current_y -= line_height * 0.5
 
         # --- 비용 상세 내역 ---
@@ -122,7 +142,7 @@ def generate_pdf(state_data, calculated_cost_items, total_cost, personnel_info):
               if str(item[0]) == "기본 운임":
                  base_fare_index = i
                  if date_surcharge_index != -1 and date_surcharge_amount > 0:
-                     try: item[1] = int(item[1]) + date_surcharge_amount; item[2] = "이사 집중일 추가 운영 요금" # 수정된 비고 적용
+                     try: item[1] = int(item[1] or 0) + date_surcharge_amount; item[2] = "이사 집중일 추가 운영 요금" # 수정된 비고 적용
                      except Exception as e: print(f"Error merging date surcharge: {e}")
                  break
         if date_surcharge_index != -1:
@@ -131,11 +151,14 @@ def generate_pdf(state_data, calculated_cost_items, total_cost, personnel_info):
                   except IndexError: print(f"Warning: Could not remove date surcharge item at index {date_surcharge_index}")
               else: print(f"Warning: date_surcharge_index {date_surcharge_index} out of range for temp_items (len: {len(temp_items)})")
 
-        for item_desc, item_cost, *item_note_tuple in temp_items:
-             item_note = item_note_tuple[0] if item_note_tuple else "";
-             try: item_cost_int = int(item_cost)
+        for item_data in temp_items: # 변수명 변경
+             item_desc = str(item_data[0])
+             item_cost_int = 0
+             item_note = ""
+             try: item_cost_int = int(item_data[1] or 0)
              except (ValueError, TypeError): item_cost_int = 0
-             cost_items_processed.append((str(item_desc), item_cost_int, str(item_note)))
+             if len(item_data) > 2: item_note = str(item_data[2] or '')
+             cost_items_processed.append((item_desc, item_cost_int, item_note))
         # --- 비용 항목 처리 끝 ---
 
         # --- 비용 테이블 그리기 ---
@@ -149,12 +172,12 @@ def generate_pdf(state_data, calculated_cost_items, total_cost, personnel_info):
              if current_y < margin_y + 3*cm : c.showPage(); page_number += 1; draw_page_template(c, page_number); current_y = height - margin_y - 1*cm
              c.drawString(cost_col1_x, current_y, "계산된 비용 내역이 없습니다."); current_y -= line_height
 
-        # --- 비용 요약 ---
+        # --- 비용 요약 (수정됨: 코드 구조 명확화) ---
         summary_start_y = current_y;
         if summary_start_y < margin_y + line_height * 5: c.showPage(); page_number += 1; draw_page_template(c, page_number); summary_start_y = height - margin_y - 1*cm; c.setFont('NanumGothic', 11)
         current_y = summary_start_y; c.line(cost_col1_x, current_y, right_margin_x, current_y); current_y -= line_height
 
-        # 값 계산 (명확하게 분리)
+        # 값 계산
         total_cost_num = 0
         if isinstance(total_cost, (int, float)): total_cost_num = int(total_cost)
         deposit_amount_raw = state_data.get('deposit_amount', 0); deposit_amount = 0
@@ -206,8 +229,17 @@ def generate_excel(state_data, calculated_cost_items, total_cost, personnel_info
         is_storage = state_data.get('is_storage_move', False); is_long_distance = state_data.get('apply_long_distance', False); is_waste = state_data.get('has_waste_check', False)
         from_method = state_data.get('from_method', '-'); to_method = state_data.get('to_method', '-'); to_floor = state_data.get('to_floor', '-'); use_sky_from = (from_method == "스카이 🏗️"); use_sky_to = (to_method == "스카이 🏗️")
         p_info = personnel_info if isinstance(personnel_info, dict) else {}; final_men = p_info.get('final_men', 0); final_women = p_info.get('final_women', 0); personnel_text = f"남성 {final_men}명" + (f", 여성 {final_women}명" if final_women > 0 else "")
-        dest_address = state_data.get('to_location', '-');
-        kst_excel_date = utils.get_current_kst_time_str("%Y-%m-%d") if utils else datetime.now().strftime("%Y-%m-%d")
+        dest_address = state_data.get('to_location', '-') # 세미콜론 제거
+        kst_excel_date = ''
+        if utils and hasattr(utils, 'get_current_kst_time_str'):
+            try:
+                kst_excel_date = utils.get_current_kst_time_str("%Y-%m-%d")
+            except Exception as e_time:
+                print(f"Warning: Error calling utils.get_current_kst_time_str: {e_time}")
+                kst_excel_date = datetime.now().strftime("%Y-%m-%d")
+        else:
+            print("Warning: utils module or get_current_kst_time_str not available.")
+            kst_excel_date = datetime.now().strftime("%Y-%m-%d")
 
         # 1. '견적 정보' 시트 데이터 생성 (가독성 개선 및 명확화)
         ALL_INFO_LABELS = ["회사명", "주소", "연락처", "이메일", "", "고객명", "고객 연락처", "견적일", "이사 종류", "", "이사일", "출발지", "도착지", "출발층", "도착층", "출발 작업", "도착 작업", "", "보관 이사", "보관 기간", "보관 유형", "", "장거리 적용", "장거리 구간", "", "스카이 사용 시간", "", "폐기물 처리(톤)", "", "날짜 할증 선택", "", "총 작업 인원", "", "선택 차량", "자동 추천 차량", "이사짐 총 부피", "이사짐 총 무게", "", "고객요구사항"]
@@ -218,7 +250,7 @@ def generate_excel(state_data, calculated_cost_items, total_cost, personnel_info
                 info_data_list.append(("", ""))
                 continue
 
-            # --- 값 매핑 로직 시작 (가독성 위해 분리) ---
+            # --- 값 매핑 로직 시작 (한 줄씩 분리 - 이전과 동일하게 가독성 유지) ---
             if label == "회사명": value = "(주)이사데이"
             elif label == "주소": value = COMPANY_ADDRESS
             elif label == "연락처": value = f"{COMPANY_PHONE_1} | {COMPANY_PHONE_2}"
@@ -276,18 +308,20 @@ def generate_excel(state_data, calculated_cost_items, total_cost, personnel_info
         if all_items_data: df_all_items = pd.DataFrame(all_items_data, columns=["품목명", "수량"])
         else: df_all_items = pd.DataFrame({"정보": ["정의된 품목 없음"]})
 
-
-        # 3. '비용 내역 및 요약' 시트 데이터 생성 (가독성 개선)
+        # 3. '비용 내역 및 요약' 시트 데이터 생성 (수정된 가독성 버전)
         cost_details_excel = []
         if calculated_cost_items and isinstance(calculated_cost_items, list):
             for item in calculated_cost_items:
                  if isinstance(item, (list, tuple)) and len(item) >= 2:
                     item_desc = str(item[0]); item_cost = 0; item_note = ""
-                    try: item_cost = int(item[1] or 0) # None 방지
+                    # 비용 가져오기 (수정됨)
+                    try: item_cost = int(item[1] or 0)
                     except (ValueError, TypeError): item_cost = 0
+                    # 비고 가져오기 (수정됨)
                     if len(item) > 2:
-                        try: item_note = str(item[2] or '') # None 방지
-                        except Exception: item_note = ''
+                         try: item_note = str(item[2] or '')
+                         except Exception: item_note = ''
+                    # 오류 항목 아니면 추가
                     if "오류" not in item_desc: cost_details_excel.append({"항목": item_desc, "금액": item_cost, "비고": item_note})
 
         if cost_details_excel: df_costs = pd.DataFrame(cost_details_excel, columns=["항목", "금액", "비고"])
@@ -297,7 +331,7 @@ def generate_excel(state_data, calculated_cost_items, total_cost, personnel_info
         summary_data = [ {"항목": "--- 비용 요약 ---", "금액": "", "비고": ""}, {"항목": "총 견적 비용 (VAT 별도)", "금액": num_total, "비고": "모든 항목 합계"}, {"항목": "계약금 (-)", "금액": deposit_amount, "비고": ""}, {"항목": "잔금 (VAT 별도)", "금액": remaining_balance, "비고": "총 견적 비용 - 계약금"} ]
         df_summary = pd.DataFrame(summary_data, columns=["항목", "금액", "비고"]); df_costs_final = pd.concat([df_costs, df_summary], ignore_index=True)
 
-        # 4. 엑셀 파일 쓰기 및 서식 지정
+        # 4. 엑셀 파일 쓰기 및 서식 지정 (컬럼 너비 계산 수정됨)
         with pd.ExcelWriter(output, engine='openpyxl') as writer:
             df_info.to_excel(writer, sheet_name='견적 정보', index=False)
             df_all_items.to_excel(writer, sheet_name='전체 품목 수량', index=False)
@@ -310,10 +344,28 @@ def generate_excel(state_data, calculated_cost_items, total_cost, personnel_info
                     try: header_value = worksheet[f"{column}1"].value; header_len = len(str(header_value)) if header_value is not None else 0;
                     except Exception: header_len = 0;
                     max_length = header_len
+                    # --- 셀 값 처리 로직 수정 ---
                     for cell in col:
                         try:
-                            if cell.value is not None: cell_value_str = str(cell.value); lines = cell_value_str.split('\n'); cell_len = max(len(line) for line in lines) if lines else 0; if cell_len > max_length: max_length = cell_len
-                        except Exception: pass # 셀 값 처리 오류 무시
+                            if cell.value is not None:
+                                cell_value_str = str(cell.value)
+                                lines = cell_value_str.split('\n')
+                                # 가장 긴 줄의 길이 계산 (안전하게)
+                                cell_len = 0
+                                if lines: # 빈 리스트가 아닐 경우
+                                     try:
+                                          line_lengths = [len(str(line or '')) for line in lines]
+                                          if line_lengths: cell_len = max(line_lengths)
+                                     except Exception as max_err:
+                                          print(f"Warning: Error calculating max line length for cell {cell.coordinate}: {max_err}")
+                                          cell_len = len(lines[0]) if lines else 0
+
+                                # 현재 컬럼의 최대 길이 업데이트
+                                if cell_len > max_length:
+                                    max_length = cell_len
+                        except Exception as cell_proc_err:
+                             print(f"Warning: Error processing cell {cell.coordinate} for width calculation: {cell_proc_err}")
+                    # --- 셀 값 처리 로직 끝 ---
                     adjusted_width = (max_length + 2) * 1.2; adjusted_width = min(adjusted_width, 60); adjusted_width = max(adjusted_width, header_len + 2); worksheet.column_dimensions[column].width = adjusted_width
 
         excel_data = output.getvalue()
@@ -322,6 +374,8 @@ def generate_excel(state_data, calculated_cost_items, total_cost, personnel_info
     except Exception as e:
         st.error(f"엑셀 파일 생성 중 오류: {e}"); print(f"Error during Excel generation: {e}"); traceback.print_exc(); return None
     finally:
-        if output: output.close()
+        if output is not None:
+             try: output.close()
+             except Exception as close_e: print(f"Error closing Excel buffer: {close_e}")
 
 # pdf_generator.py 파일 끝
