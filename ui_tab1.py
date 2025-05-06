@@ -1,4 +1,4 @@
-# ui_tab1.py (Uploader outside form, WITH key, NO state reset, NO explicit rerun in submit)
+# ui_tab1.py (Uploader outside form, WITH key, NO state reset, NO explicit rerun in submit, Customer Info RESTORED)
 import streamlit as st
 from datetime import datetime, date
 import pytz
@@ -37,7 +37,7 @@ def render_tab1():
 
         # --- Load Section ---
         with col_load:
-            # (Load Section Code - unchanged, based on last working version)
+            # (Load Section Code - unchanged)
             st.markdown("**견적 불러오기**"); search_term = st.text_input("JSON 검색어 (날짜 YYMMDD 또는 번호 XXXX)", key="gdrive_search_term", help="파일 이름 일부 입력 후 검색")
             if st.button("🔍 견적 검색"):
                 st.session_state.loaded_images = {}; st.session_state.gdrive_image_files = []
@@ -83,7 +83,7 @@ def render_tab1():
                                 if loaded_count > 0: st.success(f"✅ 이미지 {loaded_count}개 로딩 완료.")
                                 if loaded_count != num_images: st.warning(f"⚠️ {num_images - loaded_count}개 이미지 로딩 실패/못 찾음.")
                     else: st.error("❌ JSON 파일 로딩 실패.")
-                # Removed explicit rerun from here
+                # Removed explicit rerun
 
         # --- Save Section ---
         with col_save:
@@ -94,7 +94,7 @@ def render_tab1():
                 "사진 첨부:",
                 accept_multiple_files=True,
                 type=['png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp'],
-                key="quote_image_uploader"  # <-- Key is Present
+                key="quote_image_uploader"  # <-- Key is Present and UNIQUE to this tab
             )
             # --- End File Uploader ---
 
@@ -105,7 +105,7 @@ def render_tab1():
                 phone_ex = utils.extract_phone_number_part(st.session_state.get('customer_phone', ''), length=4, default="XXXX")
                 quote_base_name = f"{now_ex_str}-{phone_ex}"; example_json_fname = f"{quote_base_name}.json"; st.caption(f"JSON: `{example_json_fname}`"); st.caption(f"사진: `{quote_base_name}_사진1.png` 등")
                 st.caption("JSON 파일은 덮어쓰기, 사진은 항상 새로 업로드됩니다.")
-                # --- Submit button ---
+
                 submitted = st.form_submit_button("💾 Google Drive에 저장")
 
                 if submitted:
@@ -118,7 +118,6 @@ def render_tab1():
                     if phone_part == "번호없음" or not customer_phone.strip():
                          st.error("⚠️ 저장 실패: 고객 전화번호 필요.")
                     else:
-                        save_successful = False
                         # (Generate filenames - unchanged)
                         try: kst_save = pytz.timezone("Asia/Seoul"); now_save = datetime.now(kst_save)
                         except Exception: now_save = datetime.now()
@@ -134,6 +133,12 @@ def render_tab1():
                             if uploaded_file_obj is None: continue
                             original_filename = uploaded_file_obj.name; _, extension = os.path.splitext(original_filename)
                             desired_drive_image_filename = f"{base_save_name}_사진{i+1}{extension}"
+                            # Optional: Add filename validation here if desired
+                            # try:
+                            #     utils.validate_filename(desired_drive_image_filename) # Assuming validate_filename is in utils
+                            # except ValueError as ve:
+                            #     st.error(f"❌ 파일 이름 오류: {ve}"); upload_errors = True; continue # Skip this file
+
                             with st.spinner(f"이미지 '{desired_drive_image_filename}' 처리 및 업로드 중..."):
                                 try:
                                     image_bytes = uploaded_file_obj.getvalue()
@@ -148,7 +153,7 @@ def render_tab1():
                         elif upload_errors: st.warning("⚠️ 일부 이미지 업로드 실패.")
                         # --- End Image Processing ---
 
-                        st.session_state.gdrive_image_files = saved_image_names # Update state
+                        st.session_state.gdrive_image_files = saved_image_names
                         state_data_to_save = prepare_state_for_save()
 
                         # --- Save JSON ---
@@ -164,18 +169,81 @@ def render_tab1():
                         # --- REMOVED State Reset Attempt and Explicit Rerun ---
             # --- End Form ---
 
+    # --- Customer Info Section RESTORED ---
+    st.divider()
+    st.header("📝 고객 기본 정보")
+    move_type_options_tab1 = globals().get('MOVE_TYPE_OPTIONS')
+    sync_move_type_callback_ref = getattr(callbacks, 'sync_move_type', None)
+
+    if move_type_options_tab1:
+        try: current_index_tab1 = move_type_options_tab1.index(st.session_state.base_move_type)
+        except ValueError: current_index_tab1 = 0
+        st.radio( "🏢 **기본 이사 유형**",
+                  options=move_type_options_tab1, index=current_index_tab1, horizontal=True,
+                  key="base_move_type_widget_tab1", on_change=sync_move_type_callback_ref,
+                  args=("base_move_type_widget_tab1",) )
+    else: st.warning("이사 유형 옵션을 로드할 수 없습니다.")
+
+    col_opts1, col_opts2 = st.columns(2);
+    with col_opts1: st.checkbox("📦 보관이사 여부", key="is_storage_move")
+    with col_opts2: st.checkbox("🛣️ 장거리 이사 적용", key="apply_long_distance")
+
+    col1, col2 = st.columns(2)
+    with col1:
+        st.text_input("👤 고객명", key="customer_name")
+        st.text_input("📍 출발지 주소", key="from_location")
+        if st.session_state.get('apply_long_distance'):
+             ld_options = data.long_distance_options if hasattr(data,'long_distance_options') else []
+             st.selectbox("🛣️ 장거리 구간 선택", ld_options, key="long_distance_selector")
+        st.text_input("🔼 출발지 층수", key="from_floor", placeholder="예: 3, B1, -1")
+        method_options = data.METHOD_OPTIONS if hasattr(data,'METHOD_OPTIONS') else []
+        st.selectbox("🛠️ 출발지 작업 방법", method_options, key="from_method", help="사다리차, 승강기, 계단, 스카이 중 선택")
+    with col2:
+        st.text_input("📞 전화번호", key="customer_phone", placeholder="01012345678")
+        st.text_input("📧 이메일", key="customer_email", placeholder="email@example.com") # Email input
+        st.text_input("📍 도착지 주소", key="to_location", placeholder="이사 도착지 상세 주소")
+        st.text_input("🔽 도착지 층수", key="to_floor", placeholder="예: 5, B2, -2")
+        method_options_to = data.METHOD_OPTIONS if hasattr(data,'METHOD_OPTIONS') else []
+        st.selectbox("🛠️ 도착지 작업 방법", method_options_to, key="to_method", help="사다리차, 승강기, 계단, 스카이 중 선택")
+
+        current_moving_date_val = st.session_state.get('moving_date')
+        if not isinstance(current_moving_date_val, date):
+             try: kst_def = pytz.timezone("Asia/Seoul"); default_date_def = datetime.now(kst_def).date()
+             except Exception: default_date_def = datetime.now().date()
+             st.session_state.moving_date = default_date_def
+        st.date_input("🗓️ 이사 예정일 (출발일)", key="moving_date")
+        kst_time_str = utils.get_current_kst_time_str() if utils and hasattr(utils, 'get_current_kst_time_str') else ''
+        st.caption(f"⏱️ 견적 생성일: {kst_time_str}")
+
     st.divider()
 
-    # --- Customer Info Section ---
-    # (Code unchanged, omitted for brevity)
-    st.header("📝 고객 기본 정보"); # ... Rest of customer info inputs ...
+    # --- Display Loaded Images RESTORED ---
+    if st.session_state.get("loaded_images"):
+        st.subheader("🖼️ 불러온 사진")
+        loaded_images_dict = st.session_state.loaded_images
+        num_loaded = len(loaded_images_dict)
+        num_cols_display = min(num_loaded, 4)
+        if num_cols_display > 0:
+            cols_display = st.columns(num_cols_display)
+            i = 0
+            for filename, img_bytes in loaded_images_dict.items():
+                with cols_display[i % num_cols_display]:
+                    st.image(img_bytes, caption=filename, use_container_width=True)
+                i += 1
+        st.divider()
 
-    # --- Display Loaded Images ---
-    # (Code unchanged, omitted for brevity)
-    if st.session_state.get("loaded_images"): st.subheader("🖼️ 불러온 사진"); # ... Rest of image display ...
-
-    # --- Storage Move Info / Special Notes ---
-    # (Code unchanged, omitted for brevity)
-    if st.session_state.get('is_storage_move'): st.subheader("📦 보관이사 추가 정보"); # ... Rest of storage/notes ...
+    # --- Storage Move Info / Special Notes RESTORED ---
+    if st.session_state.get('is_storage_move'):
+        st.subheader("📦 보관이사 추가 정보")
+        storage_options = data.STORAGE_TYPE_OPTIONS if hasattr(data, 'STORAGE_TYPE_OPTIONS') else []
+        st.radio("보관 유형 선택:", options=storage_options, key="storage_type", horizontal=True)
+        st.number_input("보관 기간 (일)", min_value=1, step=1, key="storage_duration")
+        st.divider()
+    st.header("🗒️ 고객 요구사항")
+    st.text_area(
+        "기타 특이사항이나 요청사항을 입력해주세요.", height=100, key="special_notes",
+        placeholder="예: 에어컨 이전 설치 필요, 특정 가구 분해/조립 요청 등"
+    )
+    # --- !!! END RESTORED SECTIONS !!! ---
 
 # --- End of render_tab1 function ---
