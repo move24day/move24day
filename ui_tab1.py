@@ -1,4 +1,4 @@
-# ui_tab1.py (file_uploader에 고정 key 추가 및 상태 초기화 로직 추가)
+# ui_tab1.py (Reset uploader state BEFORE loading)
 import streamlit as st
 from datetime import datetime, date
 import pytz
@@ -39,8 +39,14 @@ def render_tab1():
             st.markdown("**견적 불러오기**")
             search_term = st.text_input("JSON 검색어 (날짜 YYMMDD 또는 번호 XXXX)", key="gdrive_search_term", help="파일 이름 일부 입력 후 검색")
             if st.button("🔍 견적 검색"):
+                # Reset loaded images state when initiating a new search
                 st.session_state.loaded_images = {}
                 st.session_state.gdrive_image_files = []
+                # Also reset the file uploader widget's state here if desired,
+                # although resetting before loading is more crucial for the error.
+                # if 'quote_image_uploader' in st.session_state:
+                #     st.session_state.quote_image_uploader = []
+
                 search_term_strip = search_term.strip()
                 if search_term_strip:
                     with st.spinner("🔄 Google Drive에서 JSON 검색 중..."):
@@ -83,6 +89,14 @@ def render_tab1():
             if st.button("📂 선택 견적 불러오기", disabled=load_button_disabled, key="load_gdrive_btn"):
                 json_file_id = st.session_state.gdrive_selected_file_id
                 if json_file_id:
+                    # --- !!! 수정된 부분: 로딩 시작 전에 상태 초기화 !!! ---
+                    # 파일 업로더 위젯 상태 초기화 (키가 존재하면)
+                    if 'quote_image_uploader' in st.session_state:
+                        st.session_state.quote_image_uploader = []
+                    # 로드된 이미지 표시 영역 초기화
+                    st.session_state.loaded_images = {}
+                    # --- !!! 초기화 완료 !!! ---
+
                     with st.spinner(f"🔄 견적 데이터 로딩 중..."):
                         loaded_content = gdrive.load_json_file(json_file_id)
                     if loaded_content:
@@ -99,12 +113,13 @@ def render_tab1():
                             # --- 이미지 로딩 로직 시작 ---
                             image_filenames_to_load = st.session_state.get("gdrive_image_files", [])
                             if image_filenames_to_load:
-                                st.session_state.loaded_images = {}
+                                # st.session_state.loaded_images = {} # Already reset above
                                 num_images = len(image_filenames_to_load)
                                 img_load_bar = st.progress(0, text=f"🖼️ 이미지 로딩 중... (0/{num_images})")
                                 loaded_count = 0
                                 for i, img_filename in enumerate(image_filenames_to_load):
                                      img_file_id = None
+                                     # 이미지 검색 및 다운로드 로직은 기존과 동일
                                      with st.spinner(f"이미지 '{img_filename}' 검색 중..."):
                                          img_file_id = gdrive.find_file_id_by_exact_name(img_filename)
                                      if img_file_id:
@@ -129,6 +144,7 @@ def render_tab1():
 
 
         # --- Save Section ---
+        # (Save Section 코드는 이전과 동일하게 유지 - 고정 key 포함)
         with col_save:
             st.markdown("**현재 견적 저장**")
             with st.form(key="save_quote_form"):
@@ -138,14 +154,12 @@ def render_tab1():
                 quote_base_name = f"{now_ex_str}-{phone_ex}"; example_json_fname = f"{quote_base_name}.json"
                 st.caption(f"JSON 파일명 형식: `{example_json_fname}`"); st.caption(f"사진 파일명 형식: `{quote_base_name}_사진1.png` 등 (중복 시 자동 이름 변경)")
 
-                # --- !!! 파일 업로더에 고정 key 추가 !!! ---
                 uploaded_image_files_in_form = st.file_uploader(
                     "사진 첨부 (최대 5장):",
                     accept_multiple_files=True,
                     type=['png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp'],
-                    key="quote_image_uploader"  # <--- 수정된 부분: 고정 키 할당
+                    key="quote_image_uploader"  # <--- 고정 키 유지
                 )
-                # --- !!! key 추가 완료 !!! ---
 
                 if uploaded_image_files_in_form and len(uploaded_image_files_in_form) > 5:
                     st.warning("⚠️ 사진은 최대 5장까지만 첨부 및 저장됩니다.", icon="⚠️")
@@ -170,6 +184,7 @@ def render_tab1():
                         if num_images_to_upload > 0: img_upload_bar = st.progress(0, text=f"🖼️ 이미지 업로드 중... (0/{num_images_to_upload})")
                         upload_errors = False
 
+                        # 이미지 업로드 로직 (기존과 동일)
                         for i, uploaded_file in enumerate(files_to_upload):
                             original_filename = uploaded_file.name; _, extension = os.path.splitext(original_filename)
                             desired_drive_image_filename = f"{base_save_name}_사진{i+1}{extension}"
@@ -184,7 +199,6 @@ def render_tab1():
                                      progress_val = (i + 1) / num_images_to_upload
                                      img_upload_bar.progress(progress_val, text=f"🖼️ 이미지 업로드 중... ({i+1}/{num_images_to_upload})")
                             else: st.error(f"❌ 이미지 '{original_filename}' 업로드 실패."); upload_errors = True
-                            # time.sleep(0.1) # Optional delay
 
                         if img_upload_bar: img_upload_bar.empty()
                         if not upload_errors and num_images_to_upload > 0: st.success(f"✅ 이미지 {num_images_to_upload}개 업로드 완료.")
@@ -193,11 +207,11 @@ def render_tab1():
                         st.session_state.gdrive_image_files = saved_image_names # Update state with actual names
                         state_data_to_save = prepare_state_for_save()
 
+                        # JSON 저장 로직 (기존과 동일)
                         try:
                             with st.spinner(f"🔄 '{json_filename}' 견적 데이터 저장 중..."):
                                 save_json_result = gdrive.save_json_file(json_filename, state_data_to_save)
 
-                            # --- !!! 수정된 부분: 성공 시 업로더 상태 초기화 !!! ---
                             if save_json_result and save_json_result.get('id'):
                                 st.success(f"✅ '{json_filename}' 저장/업데이트 완료.")
                                 # 저장 성공 시 파일 업로더 상태 초기화 (선택적이지만 권장)
@@ -205,7 +219,6 @@ def render_tab1():
                                      st.session_state.quote_image_uploader = []
                             else:
                                 st.error(f"❌ '{json_filename}' 저장 중 오류 발생.")
-                            # --- !!! 초기화 로직 추가 완료 !!! ---
 
                         except TypeError as json_err: st.error(f"❌ 저장 실패: 데이터를 JSON으로 변환 중 오류 발생 - {json_err}")
                         except Exception as save_err: st.error(f"❌ '{json_filename}' 파일 저장 중 예외 발생: {save_err}")
@@ -214,6 +227,7 @@ def render_tab1():
     st.divider()
 
     # --- Customer Info Section ---
+    # (이하 코드는 변경 없음)
     st.header("📝 고객 기본 정보")
     move_type_options_tab1 = globals().get('MOVE_TYPE_OPTIONS')
     sync_move_type_callback_ref = getattr(callbacks, 'sync_move_type', None)
