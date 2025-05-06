@@ -1,4 +1,4 @@
-# ui_tab1.py (Image limit removed, conditional rendering removed)
+# ui_tab1.py (Reset uploader state AFTER successful form submission)
 import streamlit as st
 from datetime import datetime, date
 import pytz
@@ -101,10 +101,9 @@ def render_tab1():
 
                         if load_success:
                             st.success("✅ 견적 데이터 로딩 완료.")
-                            # --- Load images logic (same as before) ---
+                            # Load images logic (same as before)
                             image_filenames_to_load = st.session_state.get("gdrive_image_files", [])
                             if image_filenames_to_load:
-                                # st.session_state.loaded_images = {} # Reset above
                                 num_images = len(image_filenames_to_load)
                                 img_load_bar = st.progress(0, text=f"🖼️ 이미지 로딩 중... (0/{num_images})")
                                 loaded_count = 0
@@ -123,18 +122,16 @@ def render_tab1():
                                              img_load_bar.progress(progress_val, text=f"🖼️ 이미지 로딩 중... ({loaded_count}/{num_images})")
                                          else: st.warning(f"⚠️ 이미지 '{img_filename}' (ID:{img_file_id}) 다운로드 실패.")
                                      else: st.warning(f"⚠️ 저장된 이미지 파일 '{img_filename}'을 Google Drive에서 찾을 수 없습니다.")
-                                     time.sleep(0.1) # Prevent hitting API limits quickly
+                                     time.sleep(0.1)
                                 img_load_bar.empty()
                                 if loaded_count > 0: st.success(f"✅ 이미지 {loaded_count}개 로딩 완료.")
                                 if loaded_count != num_images: st.warning(f"⚠️ {num_images - loaded_count}개 이미지 로딩 실패 또는 찾을 수 없음.")
-                            # --- Image loading end ---
                         # else: handled in load_state_from_data
                     else:
                          st.error("❌ 선택된 JSON 파일 내용을 불러오는 데 실패했습니다.")
-                # No explicit rerun needed here anymore
+                st.rerun() # Ensure UI updates after loading potentially affecting other parts
 
-
-        # --- Save Section (Rendered Unconditionally) ---
+        # --- Save Section ---
         with col_save:
             st.markdown("**현재 견적 저장**")
             with st.form(key="save_quote_form"):
@@ -144,25 +141,18 @@ def render_tab1():
                 quote_base_name = f"{now_ex_str}-{phone_ex}"; example_json_fname = f"{quote_base_name}.json"
                 st.caption(f"JSON 파일명 형식: `{example_json_fname}`"); st.caption(f"사진 파일명 형식: `{quote_base_name}_사진1.png` 등 (중복 시 자동 이름 변경)")
 
-                # File uploader with its unique key, removed label limit text
                 uploaded_image_files_in_form = st.file_uploader(
-                    "사진 첨부:", # Removed "(최대 5장):"
+                    "사진 첨부:",
                     accept_multiple_files=True,
                     type=['png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp'],
-                    key="quote_image_uploader"  # Keep the original key for Tab 1
+                    key="quote_image_uploader" # Keep the original key for Tab 1
                 )
-
-                # REMOVED: Warning about file limit
-                # if uploaded_image_files_in_form and len(uploaded_image_files_in_form) > 5:
-                #     st.warning("⚠️ 사진은 최대 5장까지만 첨부 및 저장됩니다.", icon="⚠️")
 
                 st.caption("JSON(견적 데이터) 파일은 덮어쓰기됩니다. 사진은 매번 새로 업로드됩니다 (중복 시 자동 이름 변경).")
                 submitted = st.form_submit_button("💾 Google Drive에 저장")
 
                 if submitted:
                     current_uploaded_files = uploaded_image_files_in_form or []
-                    # REMOVED: Warning and slicing for file limit
-                    # if len(current_uploaded_files) > 5: st.warning("5장을 초과한 이미지는 제외하고 저장합니다.", icon="⚠️")
                     files_to_upload = current_uploaded_files # Use all files
 
                     customer_phone = st.session_state.get('customer_phone', ''); phone_part = utils.extract_phone_number_part(customer_phone, length=4)
@@ -179,7 +169,7 @@ def render_tab1():
                         if num_images_to_upload > 0: img_upload_bar = st.progress(0, text=f"🖼️ 이미지 업로드 중... (0/{num_images_to_upload})")
                         upload_errors = False
 
-                        # Image upload loop (same as before)
+                        # Image upload loop
                         for i, uploaded_file in enumerate(files_to_upload):
                             original_filename = uploaded_file.name; _, extension = os.path.splitext(original_filename)
                             desired_drive_image_filename = f"{base_save_name}_사진{i+1}{extension}"
@@ -199,19 +189,20 @@ def render_tab1():
                         if not upload_errors and num_images_to_upload > 0: st.success(f"✅ 이미지 {num_images_to_upload}개 업로드 완료.")
                         elif upload_errors: st.warning("⚠️ 일부 이미지 업로드에 실패했습니다.")
 
-                        st.session_state.gdrive_image_files = saved_image_names # Update state with actual names
+                        st.session_state.gdrive_image_files = saved_image_names # Update state
                         state_data_to_save = prepare_state_for_save()
 
-                        # JSON save logic (includes clearing uploader state on success)
+                        # JSON save logic
                         try:
                             with st.spinner(f"🔄 '{json_filename}' 견적 데이터 저장 중..."):
                                 save_json_result = gdrive.save_json_file(json_filename, state_data_to_save)
 
                             if save_json_result and save_json_result.get('id'):
                                 st.success(f"✅ '{json_filename}' 저장/업데이트 완료.")
-                                # Clear uploader state on successful save
+                                # --- !!! Reset Uploader State AFTER Successful Submit !!! ---
                                 if 'quote_image_uploader' in st.session_state:
-                                     st.session_state.quote_image_uploader = []
+                                     st.session_state.quote_image_uploader = [] # Clear list of uploaded files
+                                # --- !!! Reset Added !!! ---
                             else:
                                 st.error(f"❌ '{json_filename}' 저장 중 오류 발생.")
 
