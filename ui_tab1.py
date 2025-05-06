@@ -1,4 +1,4 @@
-# ui_tab1.py (Removed disallowed state assignment)
+# ui_tab1.py (Removed key from file_uploader inside the form)
 import streamlit as st
 from datetime import datetime, date
 import pytz
@@ -141,17 +141,20 @@ def render_tab1():
                 quote_base_name = f"{now_ex_str}-{phone_ex}"; example_json_fname = f"{quote_base_name}.json"
                 st.caption(f"JSON 파일명 형식: `{example_json_fname}`"); st.caption(f"사진 파일명 형식: `{quote_base_name}_사진1.png` 등 (중복 시 자동 이름 변경)")
 
+                # --- !!! REMOVED key from file uploader !!! ---
                 uploaded_image_files_in_form = st.file_uploader(
                     "사진 첨부:",
                     accept_multiple_files=True,
-                    type=['png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp'],
-                    key="quote_image_uploader" # Keep the original key for Tab 1
+                    type=['png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp']
+                    # key="quote_image_uploader"  # <-- KEY REMOVED
                 )
+                # --- !!! key removed !!! ---
 
                 st.caption("JSON(견적 데이터) 파일은 덮어쓰기됩니다. 사진은 매번 새로 업로드됩니다 (중복 시 자동 이름 변경).")
                 submitted = st.form_submit_button("💾 Google Drive에 저장")
 
                 if submitted:
+                    # Access uploaded files using the variable returned by st.file_uploader
                     current_uploaded_files = uploaded_image_files_in_form or []
                     files_to_upload = current_uploaded_files # Use all files
 
@@ -199,20 +202,16 @@ def render_tab1():
 
                             if save_json_result and save_json_result.get('id'):
                                 st.success(f"✅ '{json_filename}' 저장/업데이트 완료.")
-                                # --- !!! REMOVED Disallowed State Assignment !!! ---
-                                # if 'quote_image_uploader' in st.session_state:
-                                #      st.session_state.quote_image_uploader = [] # This line is removed
-                                # --- !!! REMOVED !!! ---
+                                # No state reset needed/possible here without key
                             else:
                                 st.error(f"❌ '{json_filename}' 저장 중 오류 발생.")
 
                         except TypeError as json_err:
                             st.error(f"❌ 저장 실패: 데이터를 JSON으로 변환 중 오류 발생 - {json_err}")
-                            traceback.print_exc() # Print traceback for debugging
+                            traceback.print_exc()
                         except Exception as save_err:
                             st.error(f"❌ '{json_filename}' 파일 저장 중 예외 발생: {save_err}")
-                            traceback.print_exc() # Print traceback for debugging
-
+                            traceback.print_exc()
             # --- End Form ---
 
     st.divider()
