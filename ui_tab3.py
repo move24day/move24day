@@ -239,7 +239,6 @@ def render_tab3():
         if not date_surcharges_defined:
             st.warning("data.py에 날짜 할증(special_day_prices) 정보가 없습니다.")
 
-        # state_manager.py의 defaults와 STATE_KEYS_TO_SAVE에 정의된 키를 사용
         date_keys = [f"date_opt_{i}_widget" for i in range(len(date_options))]
         cols_date = st.columns(len(date_options))
         for i, option in enumerate(date_options):
@@ -248,18 +247,17 @@ def render_tab3():
                  if date_surcharges_defined:
                      surcharge_amount = data.special_day_prices.get(option, 0)
                  help_text = f"{surcharge_amount:,}원 할증" if surcharge_amount > 0 else ""
-                 st.checkbox(option, key=date_keys[i], help=help_text) # 원본 키 사용
+                 st.checkbox(option, key=date_keys[i], help=help_text)
     st.divider()
 
     # --- Cost Adjustment & Deposit ---
     with st.container(border=True):
         st.subheader("💰 비용 조정 및 계약금")
         num_cols_cost_adj = 3
-        if st.session_state.get('has_via_point'): # 경유지 있으면 컬럼 추가
+        if st.session_state.get('has_via_point'):
             num_cols_cost_adj = 4
 
         cols_adj = st.columns(num_cols_cost_adj)
-        # state_manager.py의 defaults와 STATE_KEYS_TO_SAVE에 정의된 키 (접두사 없는 UI용 키)를 사용
         with cols_adj[0]: st.number_input("📝 계약금", min_value=0, step=10000, key="deposit_amount", format="%d", help="고객에게 받을 계약금 입력")
         with cols_adj[1]: st.number_input("💰 추가 조정 (+/-)", step=10000, key="adjustment_amount", help="견적 금액 외 추가 할증(+) 또는 할인(-) 금액 입력", format="%d")
         with cols_adj[2]: st.number_input("🪜 사다리 추가요금", min_value=0, step=10000, key="regional_ladder_surcharge", format="%d", help="추가되는 사다리차 비용")
@@ -278,7 +276,6 @@ def render_tab3():
 
     if final_selected_vehicle_calc:
         try:
-            # 보관 기간 재계산
             if st.session_state.get('is_storage_move'):
                 moving_dt_recalc = st.session_state.get('moving_date')
                 arrival_dt_recalc = st.session_state.get('arrival_date')
@@ -374,16 +371,16 @@ def render_tab3():
             def get_note_from_items(items_list, label_prefix):
                 for item_data in items_list:
                     if isinstance(item_data, (list, tuple)) and len(item_data) >=3:
-                        item_label, item_note = item_data[0], item_data[2]
+                        item_label, _, item_note = item_data[0], item_data[1], item_data[2] 
                         if isinstance(item_label, str) and item_label.startswith(label_prefix):
                             return str(item_note or '')
                 return ""
 
-            # --- "이사비" 계산 (경유비 포함) ---
             base_fare_summary = get_cost_from_items(cost_items, "기본 운임")
             adj_discount = get_cost_from_items(cost_items, "할인 조정")
             adj_surcharge = get_cost_from_items(cost_items, "할증 조정")
             adjustment_summary = adj_discount + adj_surcharge
+            
             date_surcharge_summary = get_cost_from_items(cost_items, "날짜 할증")
             long_distance_summary = get_cost_from_items(cost_items, "장거리 운송료")
             add_personnel_summary = get_cost_from_items(cost_items, "추가 인력")
@@ -392,124 +389,137 @@ def render_tab3():
 
             total_moving_fee_summary = (base_fare_summary + adjustment_summary +
                                        date_surcharge_summary + long_distance_summary +
-                                       add_personnel_summary + housewife_discount_summary +
-                                       via_point_surcharge_summary) # 이사비에 경유비 포함
+                                       add_personnel_summary + housewife_discount_summary + 
+                                       via_point_surcharge_summary)
 
-            # --- 기타 비용 추출 ---
             ladder_from_summary = get_cost_from_items(cost_items, "출발지 사다리차")
+            ladder_from_note_summary = get_note_from_items(cost_items, "출발지 사다리차")
             ladder_to_summary = get_cost_from_items(cost_items, "도착지 사다리차")
+            ladder_to_note_summary = get_note_from_items(cost_items, "도착지 사다리차")
             ladder_regional_summary = get_cost_from_items(cost_items, "지방 사다리 추가요금")
-            total_ladder_summary = ladder_from_summary + ladder_to_summary + ladder_regional_summary
-            sky_cost_summary = get_cost_from_items(cost_items, "스카이 장비")
+            
+            sky_from_summary = get_cost_from_items(cost_items, "출발지 스카이 장비")
+            sky_from_note_summary = get_note_from_items(cost_items, "출발지 스카이 장비")
+            sky_to_summary = get_cost_from_items(cost_items, "도착지 스카이 장비")
+            sky_to_note_summary = get_note_from_items(cost_items, "도착지 스카이 장비")
+            
             storage_fee_summary = get_cost_from_items(cost_items, "보관료")
             storage_note_summary = get_note_from_items(cost_items, "보관료")
-            waste_cost_summary = get_cost_from_items(cost_items, "폐기물 처리(톤)")
-            waste_note_summary = get_note_from_items(cost_items, "폐기물 처리(톤)")
-
+            waste_cost_summary = get_cost_from_items(cost_items, "폐기물 처리")
+            waste_note_summary = get_note_from_items(cost_items, "폐기물 처리")
 
             # --- 요약 정보 표시 시작 ---
-            # 1. 첫 줄 (출발지 - [보관] - [경유지] - 도착지 톤수)
+            # <<수정된 부분: route_str 정의 추가>>
             route_parts = [from_addr_summary if from_addr_summary else "출발지미입력"]
             if is_storage_move_summary:
-                route_parts.append("보관") # '보관' 텍스트 추가
+                route_parts.append("보관")
             if has_via_point_summary:
                  via_display = "경유지"
-                 if via_point_location_summary and via_point_location_summary != '-':
+                 if via_point_location_summary and via_point_location_summary != '-': # '-' 가 아닌 경우에만 상세 주소 표시
                      via_display = f"경유지({via_point_location_summary})"
                  route_parts.append(via_display)
             route_parts.append(to_addr_summary if to_addr_summary else "도착지미입력")
-            route_str = " - ".join(route_parts) # 구분자 '-'로 변경
+            route_str = " → ".join(route_parts) # 화살표로 변경하여 가독성 향상
 
             st.text(f"{route_str} {vehicle_tonnage_summary}")
-            st.text("") # 빈 줄 추가
+            st.text("") 
 
-            # 2. 고객 정보
             st.text(f"{customer_name_summary}")
             st.text(f"{customer_phone_summary}")
-            st.text("") # 빈 줄 추가
+            st.text("")
 
-            # 3. 차량 및 인원
             st.text(f"{selected_vehicle_summary} / {personnel_str_summary}명")
-            st.text("") # 빈 줄 추가
+            st.text("")
 
-            # 4. 작업 방법 (출발지 및 도착지 작업 방법 표시, 레이블 변경)
-            st.text(f"출발지: {from_method_summary}") # <<수정된 부분>>
-            st.text(f"도착지: {to_method_summary}") # <<수정된 부분>>
-            st.text("") # 빈 줄 추가
+            st.text(f"출발지: {from_method_summary}")
+            st.text(f"도착지: {to_method_summary}")
+            st.text("")
 
-            # 5. 계약금 / 잔금
             st.text(f"계약금 {deposit_amount_num:,.0f}원 / 잔금 {remaining_balance_num:,.0f}원")
-            st.text("") # 빈 줄 추가
+            st.text("")
 
-            # 6. 비용 요약 (수정된 이사비 형식 및 개별 항목 표시)
             st.text(f"총 {total_cost_num:,.0f}원 중")
 
-            # 이사비 계산 (기본 + 추가)
             extra_moving_fee = total_moving_fee_summary - base_fare_summary
-            # 이사비가 0이 아닐 경우에만 표시
             if total_moving_fee_summary != 0:
-                st.text(f"이사비 {total_moving_fee_summary:,.0f} (기본{base_fare_summary:,.0f}+추가{extra_moving_fee:,.0f})")
+                if abs(extra_moving_fee) > 0.01 : 
+                    st.text(f"이사비 {total_moving_fee_summary:,.0f} (기본 {base_fare_summary:,.0f} + 추가 {extra_moving_fee:,.0f})")
+                else:
+                    st.text(f"이사비 {total_moving_fee_summary:,.0f} (기본 {base_fare_summary:,.0f})")
 
-            # 기타 비용 항목들 개별 표시 (0이 아닐 경우)
-            if total_ladder_summary != 0:
-                st.text(f"사다리비 {total_ladder_summary:,.0f}")
-            if sky_cost_summary != 0:
-                st.text(f"스카이비 {sky_cost_summary:,.0f}")
+            if ladder_from_summary != 0:
+                note_display = f" ({ladder_from_note_summary})" if ladder_from_note_summary and "해당 가격 없음" not in ladder_from_note_summary and "1층 이하" not in ladder_from_note_summary else ""
+                st.text(f"출발지 사다리비 {ladder_from_summary:,.0f}원{note_display}")
+            elif ladder_from_note_summary and "1층 이하" not in ladder_from_note_summary and "해당 가격 없음" not in ladder_from_note_summary : 
+                st.text(f"출발지 사다리비 0원 ({ladder_from_note_summary})")
+
+            if ladder_to_summary != 0:
+                note_display = f" ({ladder_to_note_summary})" if ladder_to_note_summary and "해당 가격 없음" not in ladder_to_note_summary and "1층 이하" not in ladder_to_note_summary else ""
+                st.text(f"도착지 사다리비 {ladder_to_summary:,.0f}원{note_display}")
+            elif ladder_to_note_summary and "1층 이하" not in ladder_to_note_summary and "해당 가격 없음" not in ladder_to_note_summary:
+                st.text(f"도착지 사다리비 0원 ({ladder_to_note_summary})")
+
+            if ladder_regional_summary != 0:
+                st.text(f"지방 사다리 추가 {ladder_regional_summary:,.0f}원")
+
+            if sky_from_summary != 0:
+                note_display = f" ({sky_from_note_summary})" if sky_from_note_summary else ""
+                st.text(f"출발지 스카이비 {sky_from_summary:,.0f}원{note_display}")
+            
+            if sky_to_summary != 0:
+                note_display = f" ({sky_to_note_summary})" if sky_to_note_summary else ""
+                st.text(f"도착지 스카이비 {sky_to_summary:,.0f}원{note_display}")
+            
             if storage_fee_summary != 0:
-                 st.text(f"보관료 {storage_fee_summary:,.0f} ({storage_note_summary})")
+                 st.text(f"보관료 {storage_fee_summary:,.0f}원 ({storage_note_summary})")
             if waste_cost_summary != 0:
-                st.text(f"폐기물 {waste_cost_summary:,.0f} ({waste_note_summary})")
-            # 경유비는 이사비에 포함되었으므로 별도 표시 안 함
+                st.text(f"폐기물 {waste_cost_summary:,.0f}원 ({waste_note_summary})")
+            
+            st.text("") 
 
-            st.text("") # 빈 줄 추가
-
-            # 7. 주소 및 보관/전기 정보
             st.text(f"출발지 주소:")
             st.text(f"{from_addr_summary}")
-            st.text("") # 빈 줄 추가
+            st.text("") 
 
             if is_storage_move_summary:
                 storage_name_parts_body = storage_type_summary.split(" ")[:2]
                 storage_display_name_body = " ".join(storage_name_parts_body) if storage_name_parts_body else "보관이사"
-                if not storage_display_name_body.strip() or storage_display_name_body == "보관": storage_display_name_body = "보관이사"
+                if not storage_display_name_body.strip() or storage_display_name_body == "보관": storage_display_name_body ="보관이사"
                 st.text(f"{storage_display_name_body}")
                 if storage_use_electricity_summary:
                     st.text("보관이사 냉장고전기사용")
-                st.text("") # 빈 줄 추가
+                st.text("") 
 
             st.text(f"도착지 주소:")
             st.text(f"{to_addr_summary}")
-            st.text("") # 빈 줄 추가
+            st.text("")
 
-            # 8. 바구니 수량
             bask_parts_summary = []
             q_basket = utils.get_item_qty(st.session_state, "바구니")
             if q_basket > 0: bask_parts_summary.append(f"바{q_basket}")
-            q_med_basket = utils.get_item_qty(st.session_state, "중자바구니")
-            if q_med_basket > 0: bask_parts_summary.append(f"중자{q_med_basket}")
+            q_med_item_name = "중박스" 
+            if "중자바구니" in data.items : q_med_item_name = "중자바구니"
+            q_med_basket_or_box = utils.get_item_qty(st.session_state, q_med_item_name)
+            if q_med_basket_or_box > 0: bask_parts_summary.append(f"{q_med_item_name[:2]}{q_med_basket_or_box}")
+
             q_book_basket = utils.get_item_qty(st.session_state, "책바구니")
             if q_book_basket > 0: bask_parts_summary.append(f"책{q_book_basket}")
-            q_med_box = utils.get_item_qty(st.session_state, "중박스")
-            if q_med_box > 0: bask_parts_summary.append(f"중박{q_med_box}")
-
+            
             if bask_parts_summary:
                 st.text(" ".join(bask_parts_summary))
             else:
                 st.text("선택된 바구니 없음")
-            st.text("") # 빈 줄 추가
+            st.text("")
 
-            # 9. 고객 요구사항
             special_notes_display = st.session_state.get('special_notes', '').strip()
             if special_notes_display:
                 st.text("요구사항:")
                 notes_lines = [line.strip() for line in special_notes_display.split('.') if line.strip()]
                 for line in notes_lines:
-                    st.text(line) # 각 줄을 개별 라인으로 표시
+                    st.text(line)
             else:
                 st.text("요구사항: 없음")
-            # --- 이사 정보 요약 표시 끝 ---
             st.divider()
-
 
             # --- Download and Send Section ---
             st.subheader("📄 견적서 생성, 발송 및 다운로드")
