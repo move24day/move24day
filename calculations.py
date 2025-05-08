@@ -1,5 +1,5 @@
 # calculations.py
-# calculations.py (보관료 계산 시 전기 요금 추가)
+
 import data
 import math
 
@@ -206,60 +206,62 @@ def calculate_total_moving_cost(state_data):
         if ladder_cost > 0:
             cost_items.append(("출발지 사다리차", ladder_cost, ladder_note))
             total_cost += ladder_cost
-        elif ladder_note != "1층 이하":
+        elif ladder_note != "1층 이하": # "1층 이하"가 아닌 경우 (예: 가격 정보 없음)에도 항목은 추가 (금액 0)
             cost_items.append(("출발지 사다리차", 0, ladder_note))
+
 
     if to_method == "사다리차 🪜":
         ladder_cost, ladder_note = get_ladder_cost(to_floor_num, selected_vehicle)
-        dest_label = "도착지"
+        dest_label = "도착지" # 이 부분은 ui_tab3.py 에서 "도착지 사다리차"로 직접 검색하므로 여기서 label 바꿀 필요 없음
         if ladder_cost > 0:
-            cost_items.append((f"{dest_label} 사다리차", ladder_cost, ladder_note))
+            cost_items.append(("도착지 사다리차", ladder_cost, ladder_note))
             total_cost += ladder_cost
-        elif ladder_note != "1층 이하":
-            cost_items.append((f"{dest_label} 사다리차", 0, ladder_note))
+        elif ladder_note != "1층 이하": # "1층 이하"가 아닌 경우 (예: 가격 정보 없음)에도 항목은 추가 (금액 0)
+            cost_items.append(("도착지 사다리차", 0, ladder_note))
 
-    sky_total_cost = 0
-    sky_notes_list = []
-    sky_hours_from = state_data.get('sky_hours_from', 1)
-    sky_hours_final = state_data.get('sky_hours_final', 1)
-    try: sky_hours_from = max(1, int(sky_hours_from))
-    except: sky_hours_from = 1
-    try: sky_hours_final = max(1, int(sky_hours_final))
-    except: sky_hours_final = 1
+
+    # --- 스카이 비용 처리 수정 시작 ---
+    sky_hours_from_raw = state_data.get('sky_hours_from', 1)
+    sky_hours_final_raw = state_data.get('sky_hours_final', 1)
+    try: sky_hours_from = max(1, int(sky_hours_from_raw))
+    except (ValueError, TypeError): sky_hours_from = 1
+    try: sky_hours_final = max(1, int(sky_hours_final_raw))
+    except (ValueError, TypeError): sky_hours_final = 1
+
 
     if from_method == "스카이 🏗️":
-        cost = data.SKY_BASE_PRICE + data.SKY_EXTRA_HOUR_PRICE * (sky_hours_from - 1)
-        note = f"출발({sky_hours_from}h): {data.SKY_BASE_PRICE:,}"
+        cost_from_sky = data.SKY_BASE_PRICE + data.SKY_EXTRA_HOUR_PRICE * (sky_hours_from - 1)
+        # if cost_from_sky > 0: # 스카이는 기본료가 있으므로 0보다 큰지 체크는 불필요할 수 있음 (시간이 0일 수 없으므로)
+        note_from_sky = f"출발({sky_hours_from}시간): 기본 {data.SKY_BASE_PRICE:,.0f}원"
         if sky_hours_from > 1:
-            note += f" + 추가 {data.SKY_EXTRA_HOUR_PRICE*(sky_hours_from-1):,}"
-        sky_total_cost += cost
-        sky_notes_list.append(note)
+            note_from_sky += f" + 추가 {data.SKY_EXTRA_HOUR_PRICE*(sky_hours_from-1):,.0f}원"
+        cost_items.append(("출발지 스카이 장비", cost_from_sky, note_from_sky))
+        total_cost += cost_from_sky
 
     if to_method == "스카이 🏗️":
-        cost = data.SKY_BASE_PRICE + data.SKY_EXTRA_HOUR_PRICE * (sky_hours_final - 1)
-        note = f"도착({sky_hours_final}h): {data.SKY_BASE_PRICE:,}"
+        cost_to_sky = data.SKY_BASE_PRICE + data.SKY_EXTRA_HOUR_PRICE * (sky_hours_final - 1)
+        # if cost_to_sky > 0:
+        note_to_sky = f"도착({sky_hours_final}시간): 기본 {data.SKY_BASE_PRICE:,.0f}원"
         if sky_hours_final > 1:
-            note += f" + 추가 {data.SKY_EXTRA_HOUR_PRICE*(sky_hours_final-1):,}"
-        sky_total_cost += cost
-        sky_notes_list.append(note)
+            note_to_sky += f" + 추가 {data.SKY_EXTRA_HOUR_PRICE*(sky_hours_final-1):,.0f}원"
+        cost_items.append(("도착지 스카이 장비", cost_to_sky, note_to_sky))
+        total_cost += cost_to_sky
+    # --- 스카이 비용 처리 수정 끝 ---
 
-    if sky_total_cost > 0:
-        cost_items.append(("스카이 장비", sky_total_cost, " | ".join(sky_notes_list)))
-        total_cost += sky_total_cost
+    add_men_raw = state_data.get('add_men', 0)
+    add_women_raw = state_data.get('add_women', 0)
+    try: add_men = int(add_men_raw) if add_men_raw is not None else 0
+    except (ValueError, TypeError): add_men = 0
+    try: add_women = int(add_women_raw) if add_women_raw is not None else 0
+    except (ValueError, TypeError): add_women = 0
 
-    add_men = state_data.get('add_men', 0)
-    add_women = state_data.get('add_women', 0)
-    try: add_men = int(add_men) if add_men is not None else 0
-    except: add_men = 0
-    try: add_women = int(add_women) if add_women is not None else 0
-    except: add_women = 0
 
     manual_added_cost = (add_men + add_women) * data.ADDITIONAL_PERSON_COST
     if manual_added_cost > 0:
         cost_items.append(("추가 인력", manual_added_cost, f"남{add_men}, 여{add_women}"))
         total_cost += manual_added_cost
 
-    auto_added_men = 0
+    auto_added_men = 0 # 이 로직은 현재 사용되지 않는 것으로 보임
 
     remove_base_housewife = state_data.get('remove_base_housewife', False)
     actual_remove_housewife = False
@@ -270,27 +272,21 @@ def calculate_total_moving_cost(state_data):
         actual_remove_housewife = True
 
     adjustment_amount_raw = state_data.get('adjustment_amount', 0)
-    print(f"DEBUG: Raw adjustment_amount: {adjustment_amount_raw} (Type: {type(adjustment_amount_raw)})")
     try:
         adjustment_amount = int(adjustment_amount_raw)
     except (ValueError, TypeError):
         adjustment_amount = 0
-        print(f"DEBUG: adjustment_amount conversion failed, defaulted to 0")
-    print(f"DEBUG: Converted adjustment_amount: {adjustment_amount} (Type: {type(adjustment_amount)})")
-
+    
     if adjustment_amount != 0:
         adj_label = "할증 조정" if adjustment_amount > 0 else "할인 조정"
-        print(f"DEBUG: Applying adjustment: Label='{adj_label}', Amount={adjustment_amount}")
-        cost_items.append((f"{adj_label} 금액", adjustment_amount, ""))
+        cost_items.append((f"{adj_label} 금액", adjustment_amount, "수동 입력")) # 비고 추가
         total_cost += adjustment_amount
-    else:
-        print(f"DEBUG: No adjustment applied (amount is 0).")
 
-    # --- 보관료 계산 수정 (전기 요금 추가) ---
+
     if is_storage:
-        duration = state_data.get('storage_duration', 1) # 이 값은 ui_tab1에서 계산됨
-        try: duration = max(1, int(duration))
-        except: duration = 1
+        duration_raw = state_data.get('storage_duration', 1)
+        try: duration = max(1, int(duration_raw))
+        except (ValueError, TypeError): duration = 1
 
         selected_storage_type = state_data.get('storage_type', data.DEFAULT_STORAGE_TYPE)
         daily_rate = data.STORAGE_RATES_PER_DAY.get(selected_storage_type, data.STORAGE_RATES_PER_DAY.get(data.DEFAULT_STORAGE_TYPE, 0))
@@ -299,11 +295,12 @@ def calculate_total_moving_cost(state_data):
             base_storage_cost = daily_rate * duration
             use_electricity = state_data.get('storage_use_electricity', False)
             electricity_surcharge = 0
-            storage_note = f"{selected_storage_type}, {duration}일 기준"
+            storage_note = f"{selected_storage_type}, {duration}일" # "기준" 제거하여 간결하게
 
             if use_electricity:
-                electricity_surcharge = 3000 * duration # 일 3000원 추가
-                storage_note += ", 전기사용" # 비고에 추가
+                electricity_surcharge_per_day = getattr(data, 'STORAGE_ELECTRICITY_SURCHARGE_PER_DAY', 3000) # data.py에서 정의 가능하도록
+                electricity_surcharge = electricity_surcharge_per_day * duration
+                storage_note += ", 전기사용"
 
             final_storage_cost = base_storage_cost + electricity_surcharge
             cost_items.append(("보관료", final_storage_cost, storage_note))
@@ -320,35 +317,39 @@ def calculate_total_moving_cost(state_data):
             total_cost += cost
 
     has_waste = state_data.get('has_waste_check', False)
-    tons = state_data.get('waste_tons_input', 0.5)
+    tons_raw = state_data.get('waste_tons_input', 0.5)
     try:
-        tons = float(tons) if tons is not None else 0.5
-        tons = max(0.5, tons)
-    except: tons = 0.5
+        tons = float(tons_raw) if tons_raw is not None else 0.5
+        tons = max(0.5, tons) # 최소 0.5톤
+    except (ValueError, TypeError): tons = 0.5
+
 
     if has_waste:
         cost = data.WASTE_DISPOSAL_COST_PER_TON * tons
-        cost_items.append(("폐기물 처리(톤)", cost, f"{tons:.1f}톤 기준"))
+        cost_items.append(("폐기물 처리", cost, f"{tons:.1f}톤 기준")) # "폐기물 처리(톤)" 에서 "(톤)" 제거
         total_cost += cost
 
     date_surcharge = 0
     date_notes = []
     date_opts = ["이사많은날 🏠", "손없는날 ✋", "월말 📅", "공휴일 🎉", "금요일 📅"]
     for i, option in enumerate(date_opts):
+        # ui_tab3.py에서 date_opt_{i}_widget 으로 저장하므로 해당 키 사용
         if state_data.get(f"date_opt_{i}_widget", False):
             surcharge = data.special_day_prices.get(option, 0)
             if surcharge > 0:
                 date_surcharge += surcharge
-                date_notes.append(option)
+                # 각 옵션명에서 이모티콘 제거 또는 단순화
+                simple_option_name = option.split(" ")[0]
+                date_notes.append(simple_option_name)
     if date_surcharge > 0:
         cost_items.append(("날짜 할증", date_surcharge, ", ".join(date_notes)))
         total_cost += date_surcharge
 
-    regional_ladder_surcharge = state_data.get('regional_ladder_surcharge', 0)
-    try: regional_ladder_surcharge = int(regional_ladder_surcharge)
-    except: regional_ladder_surcharge = 0
+    regional_ladder_surcharge_raw = state_data.get('regional_ladder_surcharge', 0)
+    try: regional_ladder_surcharge = int(regional_ladder_surcharge_raw)
+    except (ValueError, TypeError): regional_ladder_surcharge = 0
     if regional_ladder_surcharge > 0:
-        cost_items.append(("지방 사다리 추가요금", regional_ladder_surcharge, ""))
+        cost_items.append(("지방 사다리 추가요금", regional_ladder_surcharge, "수동 입력"))
         total_cost += regional_ladder_surcharge
 
     if has_via_point:
@@ -368,14 +369,14 @@ def calculate_total_moving_cost(state_data):
     personnel_info = {
         'base_men': base_men, 'base_women': base_women,
         'manual_added_men': add_men, 'manual_added_women': add_women,
-        'auto_added_men': auto_added_men,
+        'auto_added_men': auto_added_men, # 사용되지 않는 변수
         'remove_base_housewife': actual_remove_housewife,
         'final_men': final_men, 'final_women': final_women
     }
 
     print(f"DEBUG: total_cost *before* max(0, total_cost): {total_cost}")
-    final_total_cost = max(0, total_cost)
-    print(f"DEBUG: final_total_cost *after* max(0, total_cost): {final_total_cost}")
+    final_total_cost = max(0, round(total_cost)) # 정수로 반올림 후 0 이상처리
+    print(f"DEBUG: final_total_cost *after* max(0, round(total_cost)): {final_total_cost}")
     print("-" * 30)
 
-    return round(final_total_cost), cost_items, personnel_info
+    return final_total_cost, cost_items, personnel_info
