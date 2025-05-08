@@ -1,5 +1,5 @@
 # ui_tab3.py
-# ui_tab3.py (이사비 계산 및 표시 방식 수정 최종)
+# ui_tab3.py (이사비 계산 및 표시 방식 수정 최종 확인)
 import streamlit as st
 import pandas as pd
 import io
@@ -402,7 +402,7 @@ def render_tab3():
             total_ladder_summary = ladder_from_summary + ladder_to_summary + ladder_regional_summary
             sky_cost_summary = get_cost_from_items(cost_items, "스카이 장비")
             storage_fee_summary = get_cost_from_items(cost_items, "보관료")
-            storage_note_summary = get_note_from_items(cost_items, "보관료")
+            storage_note_summary = get_note_from_items(cost_items, "보관료") # 비고 가져오기
             waste_cost_summary = get_cost_from_items(cost_items, "폐기물 처리(톤)")
             waste_note_summary = get_note_from_items(cost_items, "폐기물 처리(톤)")
 
@@ -449,7 +449,8 @@ def render_tab3():
                 if via_point_surcharge_summary != 0: breakdown_parts.append(f"경유 {via_point_surcharge_summary:,.0f}") # 경유비 세부항목
 
                 breakdown_str = " / ".join(breakdown_parts)
-                cost_summary_parts.append(f"이사비 {total_moving_fee_summary:,.0f} ({breakdown_str})") # 총액과 세부항목 표시
+                # 괄호 안 세부내역이 너무 길어질 수 있으므로, 줄바꿈 또는 다른 형식 고려 필요 시 추후 수정
+                cost_summary_parts.append(f"이사비 {total_moving_fee_summary:,.0f} ({breakdown_str})")
 
             # 기타 비용 항목들 추가
             if total_ladder_summary != 0:
@@ -457,7 +458,7 @@ def render_tab3():
             if sky_cost_summary != 0:
                 cost_summary_parts.append(f"스카이비 {sky_cost_summary:,.0f}")
             if storage_fee_summary != 0:
-                 cost_summary_parts.append(f"보관료 {storage_fee_summary:,.0f} ({storage_note_summary})")
+                 cost_summary_parts.append(f"보관료 {storage_fee_summary:,.0f} ({storage_note_summary})") # 비고 포함
             if waste_cost_summary != 0:
                 cost_summary_parts.append(f"폐기물 {waste_cost_summary:,.0f} ({waste_note_summary})")
 
