@@ -1,5 +1,5 @@
 # ui_tab3.py
-# ui_tab3.py (이사비 계산 및 표시 방식 수정 최종 확인)
+# ui_tab3.py (이사비 계산 및 표시 방식 수정 최종 + 형식 조정)
 import streamlit as st
 import pandas as pd
 import io
@@ -420,56 +420,56 @@ def render_tab3():
             route_parts.append(to_addr_summary if to_addr_summary else "도착지미입력")
             route_str = " → ".join(route_parts)
 
-            st.text(f"{route_str} {vehicle_tonnage_summary}") # 톤수만 표시
+            st.text(f"{route_str} {vehicle_tonnage_summary}")
+            st.text("") # 빈 줄 추가
 
-            # 2. 나머지 정보
+            # 2. 고객 정보
             st.text(f"{customer_name_summary}")
             st.text(f"{customer_phone_summary}")
-            st.text(f"{selected_vehicle_summary} / {personnel_str_summary}명")
+            st.text("") # 빈 줄 추가
 
+            # 3. 차량 및 인원
+            st.text(f"{selected_vehicle_summary} / {personnel_str_summary}명")
+            st.text("") # 빈 줄 추가
+
+            # 4. 작업 방법 (출발/경유/도착)
             work_methods_display_parts = []
             work_methods_display_parts.append(f"출발: {from_method_summary}")
             if has_via_point_summary:
                 work_methods_display_parts.append(f"경유: {via_method_summary}")
             work_methods_display_parts.append(f"도착: {to_method_summary}")
             st.text(" / ".join(work_methods_display_parts))
+            st.text("") # 빈 줄 추가
 
+            # 5. 계약금 / 잔금
             st.text(f"계약금 {deposit_amount_num:,.0f}원 / 잔금 {remaining_balance_num:,.0f}원")
+            st.text("") # 빈 줄 추가
 
-            # 비용 요약 (수정된 이사비 계산 및 세부 항목 표시)
-            cost_summary_parts = []
-            if total_moving_fee_summary != 0:
-                breakdown_parts = [] # 이사비 세부 항목 리스트
-                if base_fare_summary != 0: breakdown_parts.append(f"기본 {base_fare_summary:,.0f}")
-                if adjustment_summary != 0: breakdown_parts.append(f"조정 {adjustment_summary:,.0f}")
-                if date_surcharge_summary != 0: breakdown_parts.append(f"날짜 {date_surcharge_summary:,.0f}")
-                if long_distance_summary != 0: breakdown_parts.append(f"장거리 {long_distance_summary:,.0f}")
-                if add_personnel_summary != 0: breakdown_parts.append(f"인력 {add_personnel_summary:,.0f}")
-                if housewife_discount_summary != 0: breakdown_parts.append(f"할인 {housewife_discount_summary:,.0f}")
-                if via_point_surcharge_summary != 0: breakdown_parts.append(f"경유 {via_point_surcharge_summary:,.0f}") # 경유비 세부항목
+            # 6. 비용 요약 (수정된 이사비 형식)
+            st.text(f"총 {total_cost_num:,.0f}원 중")
 
-                breakdown_str = " / ".join(breakdown_parts)
-                # 괄호 안 세부내역이 너무 길어질 수 있으므로, 줄바꿈 또는 다른 형식 고려 필요 시 추후 수정
-                cost_summary_parts.append(f"이사비 {total_moving_fee_summary:,.0f} ({breakdown_str})")
+            # 이사비 계산 (기본 + 추가)
+            extra_moving_fee = total_moving_fee_summary - base_fare_summary
+            st.text(f"이사비 {total_moving_fee_summary:,.0f} (기본{base_fare_summary:,.0f} + 추가{extra_moving_fee:,.0f})")
 
-            # 기타 비용 항목들 추가
+            # 기타 비용 항목들 개별 표시
             if total_ladder_summary != 0:
-                cost_summary_parts.append(f"사다리비 {total_ladder_summary:,.0f}")
+                st.text(f"사다리비 {total_ladder_summary:,.0f}")
             if sky_cost_summary != 0:
-                cost_summary_parts.append(f"스카이비 {sky_cost_summary:,.0f}")
+                st.text(f"스카이비 {sky_cost_summary:,.0f}")
             if storage_fee_summary != 0:
-                 cost_summary_parts.append(f"보관료 {storage_fee_summary:,.0f} ({storage_note_summary})") # 비고 포함
+                 st.text(f"보관료 {storage_fee_summary:,.0f} ({storage_note_summary})") # 비고(기간, 전기) 포함
             if waste_cost_summary != 0:
-                cost_summary_parts.append(f"폐기물 {waste_cost_summary:,.0f} ({waste_note_summary})")
+                st.text(f"폐기물 {waste_cost_summary:,.0f} ({waste_note_summary})") # 비고(톤수) 포함
+            # 경유비는 이사비에 포함되었으므로 여기서는 별도 표시 안 함
 
-            # 최종 비용 라인 표시
-            if cost_summary_parts:
-                st.text(" | ".join(cost_summary_parts)) # 구분자 변경
-            else:
-                st.text("산출된 비용 항목 없음")
+            st.text("") # 빈 줄 추가
 
-            # 주소 및 보관/전기 정보
-            st.text(f"출발지 주소: {from_addr_summary}")
+            # 7. 주소 및 보관/전기 정보
+            st.text(f"출발지 주소:")
+            st.text(f"{from_addr_summary}")
+            st.text("") # 빈 줄 추가
+
             if is_storage_move_summary:
                 storage_name_parts_body = storage_type_summary.split(" ")[:2]
                 storage_display_name_body = " ".join(storage_name_parts_body) if storage_name_parts_body else "보관이사"
@@ -477,9 +477,13 @@ def render_tab3():
                 st.text(f"{storage_display_name_body}")
                 if storage_use_electricity_summary:
                     st.text("보관이사 냉장고전기사용")
-            st.text(f"도착지 주소: {to_addr_summary}")
+                st.text("") # 빈 줄 추가
 
-            # 바구니 수량
+            st.text(f"도착지 주소:")
+            st.text(f"{to_addr_summary}")
+            st.text("") # 빈 줄 추가
+
+            # 8. 바구니 수량
             bask_parts_summary = []
             q_basket = utils.get_item_qty(st.session_state, "바구니")
             if q_basket > 0: bask_parts_summary.append(f"바{q_basket}")
@@ -494,8 +498,9 @@ def render_tab3():
                 st.text(" ".join(bask_parts_summary))
             else:
                 st.text("선택된 바구니 없음")
+            st.text("") # 빈 줄 추가
 
-            # 고객 요구사항
+            # 9. 고객 요구사항
             special_notes_display = st.session_state.get('special_notes', '').strip()
             if special_notes_display:
                 st.text("요구사항:")
