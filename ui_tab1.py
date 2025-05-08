@@ -1,5 +1,5 @@
 # ui_tab1.py
-# ui_tab1.py (경유지 옵션 및 도착 예정일 추가)
+# ui_tab1.py (경유지 옵션, 도착 예정일, 보관 전기사용 옵션 추가)
 import streamlit as st
 from datetime import datetime, date, timedelta
 import pytz
@@ -142,7 +142,7 @@ def render_tab1():
         st.text_input("👤 고객명", key="customer_name"); st.text_input("📍 출발지 주소", key="from_location");
         if st.session_state.get('apply_long_distance'): ld_options = data.long_distance_options if hasattr(data,'long_distance_options') else []; st.selectbox("🛣️ 장거리 구간 선택", ld_options, key="long_distance_selector")
         st.text_input("🔼 출발지 층수", key="from_floor", placeholder="예: 3, B1, -1"); method_options = data.METHOD_OPTIONS if hasattr(data,'METHOD_OPTIONS') else []; st.selectbox("🛠️ 출발지 작업 방법", method_options, key="from_method", help="사다리차, 승강기, 계단, 스카이 중 선택")
-        # 이사 예정일 (출발일) - 위치 이동하여 도착일과 같이 표시
+        # 이사 예정일 (출발일)
         current_moving_date_val = st.session_state.get('moving_date')
         if not isinstance(current_moving_date_val, date):
              try: kst_def = pytz.timezone("Asia/Seoul"); default_date_def = datetime.now(kst_def).date()
@@ -153,9 +153,7 @@ def render_tab1():
 
     with col2:
         st.text_input("📞 전화번호", key="customer_phone", placeholder="01012345678"); st.text_input("📧 이메일", key="customer_email", placeholder="email@example.com"); st.text_input("📍 도착지 주소", key="to_location", placeholder="이사 도착지 상세 주소"); st.text_input("🔽 도착지 층수", key="to_floor", placeholder="예: 5, B2, -2"); method_options_to = data.METHOD_OPTIONS if hasattr(data,'METHOD_OPTIONS') else []; st.selectbox("🛠️ 도착지 작업 방법", method_options_to, key="to_method", help="사다리차, 승강기, 계단, 스카이 중 선택")
-        # 도착 예정일 (보관이사 시에만 활성화되도록 아래 로직 추가)
-        # st.date_input은 is_storage_move 상태에 따라 조건부로 표시되거나 disabled 처리 필요
-        # 여기서는 항상 표시하되, 아래 보관이사 섹션에서 실제 로직 처리
+        # 도착 예정일 입력은 아래 보관이사 섹션에서 조건부로 표시
 
 
     kst_time_str = utils.get_current_kst_time_str() if utils and hasattr(utils, 'get_current_kst_time_str') else ''
@@ -179,8 +177,11 @@ def render_tab1():
             storage_options = data.STORAGE_TYPE_OPTIONS if hasattr(data, 'STORAGE_TYPE_OPTIONS') else []
             st.radio("보관 유형 선택:", options=storage_options, key="storage_type", horizontal=True)
 
-            # 도착 예정일 입력 (기존 moving_date와 가까운 위치로)
-            # Initialize arrival_date if needed or if it's before moving_date
+            # 전기 사용 옵션 추가
+            st.checkbox("🔌 보관 중 전기사용 (냉장고 등, 일 3,000원 추가)", key="storage_use_electricity")
+
+            # 도착 예정일 입력
+            # arrival_date가 없거나 moving_date보다 이전이면 moving_date로 초기화
             if 'arrival_date' not in st.session_state or \
                not isinstance(st.session_state.arrival_date, date) or \
                st.session_state.arrival_date < st.session_state.moving_date:
@@ -200,15 +201,13 @@ def render_tab1():
                 delta = arrival_dt - moving_dt
                 calculated_duration = max(1, delta.days + 1) # 출발일, 도착일 포함하여 최소 1일
 
-            # Update session state (이 값은 calculations.py에서 사용됨)
+            # 계산된 기간을 세션 상태에 저장 (calculations.py에서 사용)
             st.session_state.storage_duration = calculated_duration
 
-            # 계산된 보관 기간 표시
+            # 계산된 보관 기간 표시 (읽기 전용)
             st.markdown(f"**계산된 보관 기간:** **`{calculated_duration}`** 일")
             st.caption("보관 기간은 출발일과 도착 예정일을 포함하여 자동 계산됩니다.")
 
-            # 기존 수동 입력 제거
-            # st.number_input("보관 기간 (일)", min_value=1, step=1, key="storage_duration") # REMOVED
         st.divider()
 
     with st.container(border=True):
