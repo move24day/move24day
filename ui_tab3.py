@@ -1,5 +1,5 @@
 # ui_tab3.py
-# ui_tab3.py (경유지, 작업방법, 보관/전기 요약 반영)
+# ui_tab3.py (경유지, 작업방법, 보관/전기 요약 표시 최종 수정)
 import streamlit as st
 import pandas as pd
 import io
@@ -278,7 +278,7 @@ def render_tab3():
 
     if final_selected_vehicle_calc:
         try:
-            # 보관 기간 재계산 (UI Tab 1에서 변경되었을 수 있으므로)
+            # 보관 기간 재계산
             if st.session_state.get('is_storage_move'):
                 moving_dt_recalc = st.session_state.get('moving_date')
                 arrival_dt_recalc = st.session_state.get('arrival_date')
@@ -288,11 +288,11 @@ def render_tab3():
                 else:
                     st.session_state.storage_duration = 1
 
-            current_state_dict = st.session_state.to_dict() # 현재 세션 상태를 사전으로 변환
+            current_state_dict = st.session_state.to_dict()
             total_cost, cost_items, personnel_info = calculations.calculate_total_moving_cost(current_state_dict)
 
             total_cost_num = total_cost if isinstance(total_cost, (int, float)) else 0
-            deposit_amount_val = st.session_state.get('deposit_amount', 0) # UI key 사용
+            deposit_amount_val = st.session_state.get('deposit_amount', 0)
             try: deposit_amount_num = int(deposit_amount_val)
             except (ValueError, TypeError): deposit_amount_num = 0
             remaining_balance_num = total_cost_num - deposit_amount_num
@@ -362,7 +362,7 @@ def render_tab3():
             storage_use_electricity_summary = st.session_state.get('storage_use_electricity', False)
             storage_duration_summary = st.session_state.get('storage_duration', 0)
 
-            # --- 비용 항목 추출 ---
+            # 비용 항목 추출 함수
             def get_cost_from_items(items_list, label_prefix):
                 for item_data in items_list:
                     if isinstance(item_data, (list, tuple)) and len(item_data) >=2:
@@ -374,8 +374,7 @@ def render_tab3():
             def get_note_from_items(items_list, label_prefix):
                 for item_data in items_list:
                     if isinstance(item_data, (list, tuple)) and len(item_data) >=3:
-                        item_label = item_data[0]
-                        item_note = item_data[2]
+                        item_label, item_note = item_data[0], item_data[2]
                         if isinstance(item_label, str) and item_label.startswith(label_prefix):
                             return str(item_note or '')
                 return ""
@@ -387,36 +386,31 @@ def render_tab3():
             total_ladder_summary = ladder_from_summary + ladder_to_summary + ladder_regional_summary
             sky_cost_summary = get_cost_from_items(cost_items, "스카이 장비")
             storage_fee_summary = get_cost_from_items(cost_items, "보관료")
-            storage_note_summary = get_note_from_items(cost_items, "보관료") # 보관료 비고 가져오기
+            storage_note_summary = get_note_from_items(cost_items, "보관료")
             via_point_surcharge_summary = get_cost_from_items(cost_items, "경유지 추가요금")
 
-
             # --- 요약 정보 표시 시작 ---
-            # 1. 첫 줄 (경로 + 보관유형 + 톤수)
-            first_line_parts = [from_addr_summary if from_addr_summary else "출발지미입력"]
+            # 1. 첫 줄 (출발지 → [보관] → [경유지] → 도착지 톤수)
+            route_parts = [from_addr_summary if from_addr_summary else "출발지미입력"]
+            if is_storage_move_summary:
+                # 보관 종류 표시 대신 '보관' 텍스트만 추가
+                route_parts.append("보관")
             if has_via_point_summary:
                  via_display = "경유지"
                  if via_point_location_summary and via_point_location_summary != '-':
                      via_display = f"경유지({via_point_location_summary})"
-                 first_line_parts.append(f" → {via_display}") # 경유지 추가
-            first_line_parts.append(f" → {to_addr_summary}" if to_addr_summary else " → 도착지미입력")
+                 route_parts.append(via_display)
+            route_parts.append(to_addr_summary if to_addr_summary else "도착지미입력")
+            route_str = " → ".join(route_parts)
 
-            storage_indicator_first_line = ""
-            if is_storage_move_summary:
-                storage_name_parts_fl = storage_type_summary.split(" ")[:2]
-                storage_display_name_fl = " ".join(storage_name_parts_fl) if storage_name_parts_fl else "보관이사"
-                if not storage_display_name_fl.strip() or storage_display_name_fl == "보관": storage_display_name_fl = "보관이사"
-                storage_indicator_first_line = f" {storage_display_name_fl}." # 이름과 마침표 추가
-
-            first_line = "".join(first_line_parts) # 출발지 → [경유지] → 도착지
-            st.text(f"{first_line}{storage_indicator_first_line} {vehicle_tonnage_summary}") # 보관유형. 톤수 추가
+            # 보관 유형은 이 줄에 표시하지 않음
+            st.text(f"{route_str} {vehicle_tonnage_summary}")
 
             # 2. 나머지 정보
             st.text(f"{customer_name_summary}")
             st.text(f"{customer_phone_summary}")
             st.text(f"{selected_vehicle_summary} / {personnel_str_summary}명")
 
-            # 작업 방법 표시
             work_methods_display_parts = []
             work_methods_display_parts.append(f"출발: {from_method_summary}")
             if has_via_point_summary:
@@ -426,14 +420,12 @@ def render_tab3():
 
             st.text(f"계약금 {deposit_amount_num:,.0f}원 / 잔금 {remaining_balance_num:,.0f}원")
 
-            # 비용 요약 (보관료 비고 활용)
             cost_summary_parts = []
             if base_fare_summary > 0: cost_summary_parts.append(f"이사비 {base_fare_summary:,.0f}")
             if total_ladder_summary > 0: cost_summary_parts.append(f"사다리비 {total_ladder_summary:,.0f}")
             if sky_cost_summary > 0: cost_summary_parts.append(f"스카이비 {sky_cost_summary:,.0f}")
             if storage_fee_summary > 0:
-                 # 비고에 기간과 전기사용 여부가 포함되도록 calculations.py 수정됨
-                 cost_summary_parts.append(f"보관료 {storage_fee_summary:,.0f} ({storage_note_summary})")
+                 cost_summary_parts.append(f"보관료 {storage_fee_summary:,.0f} ({storage_note_summary})") # 비고 포함
             if via_point_surcharge_summary > 0: cost_summary_parts.append(f"경유비 {via_point_surcharge_summary:,.0f}")
 
             if cost_summary_parts:
@@ -444,12 +436,14 @@ def render_tab3():
             # 주소 및 보관/전기 정보
             st.text(f"출발지 주소: {from_addr_summary}")
             if is_storage_move_summary:
+                # 보관 종류 표시
                 storage_name_parts_body = storage_type_summary.split(" ")[:2]
                 storage_display_name_body = " ".join(storage_name_parts_body) if storage_name_parts_body else "보관이사"
                 if not storage_display_name_body.strip() or storage_display_name_body == "보관": storage_display_name_body = "보관이사"
-                st.text(f"{storage_display_name_body}") # 예: 컨테이너 보관
+                st.text(f"{storage_display_name_body}")
+                # 전기 사용 시 추가 표시
                 if storage_use_electricity_summary:
-                    st.text("보관이사 냉장고전기사용") # 전기 사용 시 추가 표시
+                    st.text("보관이사 냉장고전기사용")
             st.text(f"도착지 주소: {to_addr_summary}")
 
             # 바구니 수량
