@@ -1,13 +1,12 @@
 # ui_tab1.py
-# ui_tab1.py (경유지 옵션 추가)
+# ui_tab1.py (경유지 옵션 및 도착 예정일 추가)
 import streamlit as st
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 import pytz
 import json
 import os
 import time
 import traceback
-# from streamlit.errors import StreamlitAPIException # 더 이상 필요 없음
 
 # Import necessary custom modules
 try:
@@ -136,22 +135,31 @@ def render_tab1():
     col_opts1, col_opts2, col_opts3 = st.columns(3) # 경유지 옵션을 위해 3개 컬럼
     with col_opts1: st.checkbox("📦 보관이사 여부", key="is_storage_move")
     with col_opts2: st.checkbox("🛣️ 장거리 이사 적용", key="apply_long_distance")
-    with col_opts3: st.checkbox("↪️ 경유지 이사 여부", key="has_via_point") # 경유지 옵션 추가
+    with col_opts3: st.checkbox("↪️ 경유지 이사 여부", key="has_via_point") # 경유지 옵션
 
     col1, col2 = st.columns(2)
     with col1:
         st.text_input("👤 고객명", key="customer_name"); st.text_input("📍 출발지 주소", key="from_location");
         if st.session_state.get('apply_long_distance'): ld_options = data.long_distance_options if hasattr(data,'long_distance_options') else []; st.selectbox("🛣️ 장거리 구간 선택", ld_options, key="long_distance_selector")
         st.text_input("🔼 출발지 층수", key="from_floor", placeholder="예: 3, B1, -1"); method_options = data.METHOD_OPTIONS if hasattr(data,'METHOD_OPTIONS') else []; st.selectbox("🛠️ 출발지 작업 방법", method_options, key="from_method", help="사다리차, 승강기, 계단, 스카이 중 선택")
+        # 이사 예정일 (출발일) - 위치 이동하여 도착일과 같이 표시
+        current_moving_date_val = st.session_state.get('moving_date')
+        if not isinstance(current_moving_date_val, date):
+             try: kst_def = pytz.timezone("Asia/Seoul"); default_date_def = datetime.now(kst_def).date()
+             except Exception: default_date_def = datetime.now().date()
+             st.session_state.moving_date = default_date_def
+        st.date_input("🗓️ 이사 예정일 (출발일)", key="moving_date")
+
+
     with col2:
         st.text_input("📞 전화번호", key="customer_phone", placeholder="01012345678"); st.text_input("📧 이메일", key="customer_email", placeholder="email@example.com"); st.text_input("📍 도착지 주소", key="to_location", placeholder="이사 도착지 상세 주소"); st.text_input("🔽 도착지 층수", key="to_floor", placeholder="예: 5, B2, -2"); method_options_to = data.METHOD_OPTIONS if hasattr(data,'METHOD_OPTIONS') else []; st.selectbox("🛠️ 도착지 작업 방법", method_options_to, key="to_method", help="사다리차, 승강기, 계단, 스카이 중 선택")
+        # 도착 예정일 (보관이사 시에만 활성화되도록 아래 로직 추가)
+        # st.date_input은 is_storage_move 상태에 따라 조건부로 표시되거나 disabled 처리 필요
+        # 여기서는 항상 표시하되, 아래 보관이사 섹션에서 실제 로직 처리
 
-    current_moving_date_val = st.session_state.get('moving_date');
-    if not isinstance(current_moving_date_val, date):
-         try: kst_def = pytz.timezone("Asia/Seoul"); default_date_def = datetime.now(kst_def).date()
-         except Exception: default_date_def = datetime.now().date()
-         st.session_state.moving_date = default_date_def
-    st.date_input("🗓️ 이사 예정일 (출발일)", key="moving_date"); kst_time_str = utils.get_current_kst_time_str() if utils and hasattr(utils, 'get_current_kst_time_str') else ''; st.caption(f"⏱️ 견적 생성일: {kst_time_str}")
+
+    kst_time_str = utils.get_current_kst_time_str() if utils and hasattr(utils, 'get_current_kst_time_str') else ''
+    st.caption(f"⏱️ 견적 생성일: {kst_time_str}")
     st.divider()
 
     # === Via Point Info (경유지 정보) ===
@@ -166,10 +174,43 @@ def render_tab1():
 
     # === Storage Move Info & Special Notes ===
     if st.session_state.get('is_storage_move'):
-        with st.container(border=True): # 보관이사 정보도 테두리 추가
-            st.subheader("📦 보관이사 추가 정보"); storage_options = data.STORAGE_TYPE_OPTIONS if hasattr(data, 'STORAGE_TYPE_OPTIONS') else []; st.radio("보관 유형 선택:", options=storage_options, key="storage_type", horizontal=True); st.number_input("보관 기간 (일)", min_value=1, step=1, key="storage_duration");
+        with st.container(border=True):
+            st.subheader("📦 보관이사 추가 정보")
+            storage_options = data.STORAGE_TYPE_OPTIONS if hasattr(data, 'STORAGE_TYPE_OPTIONS') else []
+            st.radio("보관 유형 선택:", options=storage_options, key="storage_type", horizontal=True)
+
+            # 도착 예정일 입력 (기존 moving_date와 가까운 위치로)
+            # Initialize arrival_date if needed or if it's before moving_date
+            if 'arrival_date' not in st.session_state or \
+               not isinstance(st.session_state.arrival_date, date) or \
+               st.session_state.arrival_date < st.session_state.moving_date:
+                st.session_state.arrival_date = st.session_state.moving_date
+
+            st.date_input(
+                "🚚 도착 예정일 (보관 후)",
+                key="arrival_date",
+                min_value=st.session_state.moving_date # 출발일 이전 선택 불가
+            )
+
+            # --- Calculate and Update Duration ---
+            moving_dt = st.session_state.moving_date
+            arrival_dt = st.session_state.arrival_date
+            calculated_duration = 1 # 기본값 1일
+            if isinstance(moving_dt, date) and isinstance(arrival_dt, date) and arrival_dt >= moving_dt:
+                delta = arrival_dt - moving_dt
+                calculated_duration = max(1, delta.days + 1) # 출발일, 도착일 포함하여 최소 1일
+
+            # Update session state (이 값은 calculations.py에서 사용됨)
+            st.session_state.storage_duration = calculated_duration
+
+            # 계산된 보관 기간 표시
+            st.markdown(f"**계산된 보관 기간:** **`{calculated_duration}`** 일")
+            st.caption("보관 기간은 출발일과 도착 예정일을 포함하여 자동 계산됩니다.")
+
+            # 기존 수동 입력 제거
+            # st.number_input("보관 기간 (일)", min_value=1, step=1, key="storage_duration") # REMOVED
         st.divider()
 
-    with st.container(border=True): # 고객요구사항도 테두리 추가
+    with st.container(border=True):
         st.header("🗒️ 고객 요구사항"); st.text_area("기타 특이사항이나 요청사항을 입력해주세요.", height=100, key="special_notes", placeholder="예: 에어컨 이전 설치 필요, 특정 가구 분해/조립 요청 등")
 # --- End of render_tab1 function ---
