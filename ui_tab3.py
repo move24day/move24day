@@ -352,7 +352,7 @@ def render_tab3():
                 personnel_str_summary += f"+{women_summary}"
 
             from_method_summary = st.session_state.get('from_method', '미지정')
-            to_method_summary = st.session_state.get('to_method', '미지정') # 도착 방법만 필요
+            to_method_summary = st.session_state.get('to_method', '미지정')
             has_via_point_summary = st.session_state.get('has_via_point', False)
             via_method_summary = st.session_state.get('via_point_method', '미지정')
             via_point_location_summary = st.session_state.get('via_point_location', '')
@@ -432,8 +432,9 @@ def render_tab3():
             st.text(f"{selected_vehicle_summary} / {personnel_str_summary}명")
             st.text("") # 빈 줄 추가
 
-            # 4. 작업 방법 (도착지 작업 방법만 표시)
-            st.text(f"도착: {to_method_summary}")
+            # 4. 작업 방법 (출발지 및 도착지 작업 방법 표시, 레이블 변경)
+            st.text(f"출발지: {from_method_summary}") # <<수정된 부분>>
+            st.text(f"도착지: {to_method_summary}") # <<수정된 부분>>
             st.text("") # 빈 줄 추가
 
             # 5. 계약금 / 잔금
