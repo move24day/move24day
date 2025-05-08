@@ -359,6 +359,7 @@ def render_tab3():
             storage_use_electricity_summary = st.session_state.get('storage_use_electricity', False)
             storage_duration_summary = st.session_state.get('storage_duration', 0)
 
+            # --- 비용 항목 추출 함수 정의 (get_note_from_items 포함) ---
             def get_cost_from_items(items_list, label_prefix):
                 for item_data in items_list:
                     if isinstance(item_data, (list, tuple)) and len(item_data) >=2:
@@ -367,14 +368,16 @@ def render_tab3():
                             try: return int(item_cost or 0)
                             except (ValueError, TypeError): return 0
                 return 0
-            # get_note_from_items는 현재 사용되지 않으므로 주석 처리 또는 삭제 가능
-            # def get_note_from_items(items_list, label_prefix):
-            #     for item_data in items_list:
-            #         if isinstance(item_data, (list, tuple)) and len(item_data) >=3:
-            #             item_label, _, item_note = item_data[0], item_data[1], item_data[2] 
-            #             if isinstance(item_label, str) and item_label.startswith(label_prefix):
-            #                 return str(item_note or '')
-            #     return ""
+            
+            # <<수정된 부분: get_note_from_items 함수 정의 추가>>
+            def get_note_from_items(items_list, label_prefix):
+                for item_data in items_list:
+                    if isinstance(item_data, (list, tuple)) and len(item_data) >=3:
+                        item_label, _, item_note = item_data[0], item_data[1], item_data[2] 
+                        if isinstance(item_label, str) and item_label.startswith(label_prefix):
+                            return str(item_note or '')
+                return ""
+            # --- 함수 정의 끝 ---
 
             base_fare_summary = get_cost_from_items(cost_items, "기본 운임")
             adj_discount = get_cost_from_items(cost_items, "할인 조정")
@@ -400,9 +403,9 @@ def render_tab3():
             sky_to_summary = get_cost_from_items(cost_items, "도착지 스카이 장비")
             
             storage_fee_summary = get_cost_from_items(cost_items, "보관료")
-            storage_note_summary = get_note_from_items(cost_items, "보관료") # 보관료는 비고가 필요할 수 있음
+            storage_note_summary = get_note_from_items(cost_items, "보관료")
             waste_cost_summary = get_cost_from_items(cost_items, "폐기물 처리")
-            waste_note_summary = get_note_from_items(cost_items, "폐기물 처리") # 폐기물도 비고가 필요할 수 있음
+            waste_note_summary = get_note_from_items(cost_items, "폐기물 처리")
 
             route_parts = [from_addr_summary if from_addr_summary else "출발지미입력"]
             if is_storage_move_summary:
@@ -441,7 +444,6 @@ def render_tab3():
                 else:
                     st.text(f"이사비 {total_moving_fee_summary:,.0f} (기본 {base_fare_summary:,.0f})")
 
-            # --- 수정된 비용 항목 표시 ---
             if ladder_from_summary > 0:
                 st.text(f"출발지 사다리비 {ladder_from_summary:,.0f}원")
             if ladder_to_summary > 0:
@@ -454,9 +456,9 @@ def render_tab3():
             if sky_to_summary > 0:
                 st.text(f"도착지 스카이비 {sky_to_summary:,.0f}원")
             
-            if storage_fee_summary > 0: # 보관료는 금액이 있을 때만 표시 (비고와 함께)
+            if storage_fee_summary > 0: 
                  st.text(f"보관료 {storage_fee_summary:,.0f}원 ({storage_note_summary})")
-            if waste_cost_summary > 0: # 폐기물 처리 비용도 금액이 있을 때만 표시 (비고와 함께)
+            if waste_cost_summary > 0: 
                 st.text(f"폐기물 {waste_cost_summary:,.0f}원 ({waste_note_summary})")
             
             st.text("") 
