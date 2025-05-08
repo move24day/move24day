@@ -1,5 +1,5 @@
 # ui_tab3.py
-# ui_tab3.py (경유지 추가요금 옵션 및 이사정보 요약 방식 변경, 작업 방법 표시 추가)
+# ui_tab3.py (경유지 추가요금, 이사정보 요약 수정 - 작업방법, 보관지 표시 추가)
 import streamlit as st
 import pandas as pd
 import io
@@ -97,13 +97,13 @@ def render_tab3():
 
 
             if use_auto_widget:
-                if final_vehicle_widget and final_vehicle_widget in available_trucks_widget: 
+                if final_vehicle_widget and final_vehicle_widget in available_trucks_widget:
                     st.success(f"✅ 자동 선택됨: **{final_vehicle_widget}**")
                     spec = data.vehicle_specs.get(final_vehicle_widget) if hasattr(data, 'vehicle_specs') else None
                     if spec:
                         st.caption(f"선택차량 최대 용량: {spec.get('capacity', 'N/A')}m³, {spec.get('weight_capacity', 'N/A'):,}kg")
                         st.caption(f"현재 이사짐 예상: {st.session_state.get('total_volume',0.0):.2f}m³, {st.session_state.get('total_weight',0.0):.2f}kg")
-                else: 
+                else:
                     error_msg = "⚠️ 자동 추천 불가: "
                     if recommended_vehicle_auto_widget and "초과" in recommended_vehicle_auto_widget: error_msg += f"물량 초과({recommended_vehicle_auto_widget}). 수동 선택 필요."
                     elif not recommended_vehicle_auto_widget and (st.session_state.get('total_volume', 0.0) > 0 or st.session_state.get('total_weight', 0.0) > 0): error_msg += "계산/정보 부족. 수동 선택 필요."
@@ -111,29 +111,29 @@ def render_tab3():
                     st.error(error_msg)
 
                     if not available_trucks_widget: st.error("❌ 현재 이사 유형에 선택 가능한 차량 정보가 없습니다.")
-                    else: 
+                    else:
                         current_manual_selection_widget = st.session_state.get("manual_vehicle_select_value")
                         current_index_widget = 0
                         if current_manual_selection_widget in available_trucks_widget:
                             try: current_index_widget = available_trucks_widget.index(current_manual_selection_widget)
                             except ValueError: current_index_widget = 0
-                        elif available_trucks_widget: 
-                            st.session_state.manual_vehicle_select_value = available_trucks_widget[0] 
-                        
+                        elif available_trucks_widget:
+                            st.session_state.manual_vehicle_select_value = available_trucks_widget[0]
+
                         st.selectbox(
                             "수동으로 차량 선택:",
                             available_trucks_widget, index=current_index_widget,
                             key="manual_vehicle_select_value",
-                            on_change=update_basket_quantities 
+                            on_change=update_basket_quantities
                         )
-                        manual_selected_display = st.session_state.get('final_selected_vehicle') 
+                        manual_selected_display = st.session_state.get('final_selected_vehicle')
                         if manual_selected_display and manual_selected_display in available_trucks_widget:
                             st.info(f"ℹ️ 수동 선택됨: **{manual_selected_display}**")
                             spec_manual = data.vehicle_specs.get(manual_selected_display) if hasattr(data, 'vehicle_specs') else None
                             if spec_manual:
                                 st.caption(f"선택차량 최대 용량: {spec_manual.get('capacity', 'N/A')}m³, {spec_manual.get('weight_capacity', 'N/A'):,}kg")
                                 st.caption(f"현재 이사짐 예상: {st.session_state.get('total_volume',0.0):.2f}m³, {st.session_state.get('total_weight',0.0):.2f}kg")
-            else: # Manual mode 
+            else: # Manual mode
                 if not available_trucks_widget: st.error("❌ 현재 이사 유형에 선택 가능한 차량 정보가 없습니다.")
                 else:
                     current_manual_selection_widget = st.session_state.get("manual_vehicle_select_value")
@@ -141,16 +141,16 @@ def render_tab3():
                     if current_manual_selection_widget in available_trucks_widget:
                         try: current_index_widget = available_trucks_widget.index(current_manual_selection_widget)
                         except ValueError: current_index_widget = 0
-                    elif available_trucks_widget: 
+                    elif available_trucks_widget:
                          st.session_state.manual_vehicle_select_value = available_trucks_widget[0]
-                         
+
                     st.selectbox(
                         "차량 직접 선택:",
                         available_trucks_widget, index=current_index_widget,
                         key="manual_vehicle_select_value",
-                        on_change=update_basket_quantities 
+                        on_change=update_basket_quantities
                     )
-                    manual_selected_display = st.session_state.get('final_selected_vehicle') 
+                    manual_selected_display = st.session_state.get('final_selected_vehicle')
                     if manual_selected_display and manual_selected_display in available_trucks_widget:
                         st.info(f"ℹ️ 수동 선택됨: **{manual_selected_display}**")
                         spec_manual = data.vehicle_specs.get(manual_selected_display) if hasattr(data, 'vehicle_specs') else None
@@ -164,10 +164,10 @@ def render_tab3():
         st.subheader("🛠️ 작업 조건 및 추가 옵션")
         sky_from = st.session_state.get('from_method') == "스카이 🏗️"
         sky_to = st.session_state.get('to_method') == "스카이 🏗️"
-        
-        if sky_from or sky_to: 
+
+        if sky_from or sky_to:
             st.warning("스카이 작업 선택됨 - 시간 입력 필요", icon="🏗️")
-            cols_sky = st.columns(2) 
+            cols_sky = st.columns(2)
             with cols_sky[0]:
                 if sky_from: st.number_input("출발 스카이 시간(h)", min_value=1, step=1, key="sky_hours_from")
             with cols_sky[1]:
@@ -217,7 +217,7 @@ def render_tab3():
             st.checkbox(f"기본 여성({base_w}명) 제외 (비용 할인: -{discount_amount:,.0f}원)", key="remove_base_housewife")
         else:
             if 'remove_base_housewife' in st.session_state:
-                st.session_state.remove_base_housewife = False 
+                st.session_state.remove_base_housewife = False
 
         col_waste1, col_waste2 = st.columns([1, 2])
         with col_waste1: st.checkbox("폐기물 처리 필요 🗑️", key="has_waste_check", help="톤 단위 직접 입력 방식입니다.")
@@ -240,7 +240,7 @@ def render_tab3():
             st.warning("data.py에 날짜 할증(special_day_prices) 정보가 없습니다.")
 
         # state_manager.py의 defaults와 STATE_KEYS_TO_SAVE에 정의된 키를 사용
-        date_keys = [f"date_opt_{i}_widget" for i in range(len(date_options))] 
+        date_keys = [f"date_opt_{i}_widget" for i in range(len(date_options))]
         cols_date = st.columns(len(date_options))
         for i, option in enumerate(date_options):
             with cols_date[i]:
@@ -257,7 +257,7 @@ def render_tab3():
         num_cols_cost_adj = 3
         if st.session_state.get('has_via_point'): # 경유지 있으면 컬럼 추가
             num_cols_cost_adj = 4
-        
+
         cols_adj = st.columns(num_cols_cost_adj)
         # state_manager.py의 defaults와 STATE_KEYS_TO_SAVE에 정의된 키 (접두사 없는 UI용 키)를 사용
         with cols_adj[0]: st.number_input("📝 계약금", min_value=0, step=10000, key="deposit_amount", format="%d", help="고객에게 받을 계약금 입력")
@@ -321,10 +321,10 @@ def render_tab3():
                 match = re.search(r'(\d+(\.\d+)?\s*톤)', selected_vehicle_summary)
                 if match:
                     vehicle_tonnage_summary = match.group(1).strip()
-                else: 
+                else:
                     ton_match_simple = re.search(r'(\d+(\.\d+)?)', selected_vehicle_summary)
                     if ton_match_simple:
-                        vehicle_tonnage_summary = ton_match_simple.group(1) + "톤" 
+                        vehicle_tonnage_summary = ton_match_simple.group(1) + "톤"
                     else:
                         vehicle_tonnage_summary = selected_vehicle_summary # 전체 이름 사용
             else:
@@ -340,20 +340,25 @@ def render_tab3():
             personnel_str_summary = f"{men_summary}"
             if women_summary > 0:
                 personnel_str_summary += f"+{women_summary}"
-            
+
             # 작업 방법 가져오기
             from_method_summary = st.session_state.get('from_method', '미지정')
             to_method_summary = st.session_state.get('to_method', '미지정')
             has_via_point_summary = st.session_state.get('has_via_point', False)
-            via_method_summary = st.session_state.get('via_point_method', '미지정') # 경유지 없어도 값은 가져옴
+            via_method_summary = st.session_state.get('via_point_method', '미지정')
+
+            # 보관이사 정보 가져오기
+            is_storage_move_summary = st.session_state.get('is_storage_move', False)
+            storage_type_summary = st.session_state.get('storage_type', '보관') # 기본값 '보관'
+            via_point_location_summary = st.session_state.get('via_point_location', '경유지') # 기본값 '경유지'
 
             # 비용 항목에서 특정 비용 추출하는 헬퍼 함수
             def get_cost_from_items(items_list, label_prefix):
-                for item_data in items_list: # items_list는 (항목, 금액, 비고) 튜플의 리스트
+                for item_data in items_list:
                     if isinstance(item_data, (list, tuple)) and len(item_data) >=2:
                         item_label, item_cost = item_data[0], item_data[1]
                         if isinstance(item_label, str) and item_label.startswith(label_prefix):
-                            try: return int(item_cost or 0) # None 방지 및 정수 변환
+                            try: return int(item_cost or 0)
                             except (ValueError, TypeError): return 0
                 return 0
 
@@ -368,7 +373,20 @@ def render_tab3():
 
 
             # --- 요약 정보 표시 시작 ---
-            st.text(f"{from_addr_summary} → {to_addr_summary} {vehicle_tonnage_summary}")
+            # 경로 문자열 생성 (보관, 경유지 포함)
+            route_parts = [from_addr_summary if from_addr_summary else "출발지미입력"]
+            if is_storage_move_summary:
+                 storage_name = storage_type_summary.split(" ")[0] if storage_type_summary else "보관지"
+                 route_parts.append(f"{storage_name}") # 예: "컨테이너보관지" 또는 "실내보관지"
+            if has_via_point_summary:
+                 via_display = "경유지"
+                 if via_point_location_summary and via_point_location_summary != '-':
+                     via_display = f"경유지({via_point_location_summary})"
+                 route_parts.append(via_display)
+            route_parts.append(to_addr_summary if to_addr_summary else "도착지미입력")
+            route_str = " → ".join(route_parts)
+
+            st.text(f"{route_str} {vehicle_tonnage_summary}")
             st.text(f"{customer_name_summary}")
             st.text(f"{customer_phone_summary}")
             st.text(f"{selected_vehicle_summary} / {personnel_str_summary}명")
@@ -376,7 +394,7 @@ def render_tab3():
             # 작업 방법 표시
             work_methods_display_parts = []
             work_methods_display_parts.append(f"출발: {from_method_summary}")
-            if has_via_point_summary: # 경유지가 있을 때만 경유지 작업 방법 표시
+            if has_via_point_summary:
                 work_methods_display_parts.append(f"경유: {via_method_summary}")
             work_methods_display_parts.append(f"도착: {to_method_summary}")
             st.text(" / ".join(work_methods_display_parts))
@@ -388,7 +406,7 @@ def render_tab3():
             if total_ladder_summary > 0: cost_summary_parts.append(f"사다리비 {total_ladder_summary:,.0f}")
             if sky_cost_summary > 0: cost_summary_parts.append(f"스카이비 {sky_cost_summary:,.0f}")
             if storage_fee_summary > 0: cost_summary_parts.append(f"보관료 {storage_fee_summary:,.0f}")
-            if via_point_surcharge_summary > 0: cost_summary_parts.append(f"경유비 {via_point_surcharge_summary:,.0f}") 
+            if via_point_surcharge_summary > 0: cost_summary_parts.append(f"경유비 {via_point_surcharge_summary:,.0f}")
 
             if cost_summary_parts:
                 st.text(" / ".join(cost_summary_parts))
@@ -402,13 +420,13 @@ def render_tab3():
             q_basket = utils.get_item_qty(st.session_state, "바구니")
             if q_basket > 0: bask_parts_summary.append(f"바{q_basket}")
 
-            q_med_basket = utils.get_item_qty(st.session_state, "중자바구니") 
+            q_med_basket = utils.get_item_qty(st.session_state, "중자바구니")
             if q_med_basket > 0: bask_parts_summary.append(f"중자{q_med_basket}")
-            
+
             q_book_basket = utils.get_item_qty(st.session_state, "책바구니")
             if q_book_basket > 0: bask_parts_summary.append(f"책{q_book_basket}")
 
-            q_med_box = utils.get_item_qty(st.session_state, "중박스") 
+            q_med_box = utils.get_item_qty(st.session_state, "중박스")
             if q_med_box > 0: bask_parts_summary.append(f"중박{q_med_box}")
 
             if bask_parts_summary:
@@ -429,7 +447,7 @@ def render_tab3():
             # --- Download and Send Section ---
             st.subheader("📄 견적서 생성, 발송 및 다운로드")
             can_gen_pdf = bool(final_selected_vehicle_calc) and not has_cost_error
-            can_gen_final_excel = bool(final_selected_vehicle_calc) 
+            can_gen_final_excel = bool(final_selected_vehicle_calc)
 
             cols_actions = st.columns([1,1,1])
 
@@ -472,7 +490,7 @@ def render_tab3():
                         with st.spinner("PDF 견적서 생성 중..."):
                             latest_total_cost_pdf, latest_cost_items_pdf, latest_personnel_info_pdf = calculations.calculate_total_moving_cost(st.session_state.to_dict())
                             pdf_cost_error_check = any(str(item[0]) == "오류" for item in latest_cost_items_pdf if isinstance(item, (list, tuple)) and len(item)>0)
-                            if pdf_cost_error_check: 
+                            if pdf_cost_error_check:
                                 st.error("❌ PDF 생성 불가: 비용 계산에 오류 항목이 있습니다.")
                                 if 'pdf_data_customer' in st.session_state: del st.session_state['pdf_data_customer']
                             else:
