@@ -201,3 +201,4 @@ def handle_item_update():
     if callable(update_basket_quantities):
         update_basket_quantities()
     # print("DEBUG CALLBACKS: handle_item_update FINISHED")
+

@@ -49,89 +49,30 @@ except Exception as e:
 
 # --- Main Application ---
 
-st.markdown("<h1 style='text-align: center; color: #1E90FF;'>🚚 이삿날 스마트 견적 🚚</h1>", unsafe_allow_html=True)
+st.markdown("<h1 style=\'text-align: center; color: #1E90FF;\'>🚚 이삿날 스마트 견적 🚚</h1>", unsafe_allow_html=True)
 st.write("")
 
-# Initialize session state (pass the callback reference for initial setup if needed)
-if hasattr(callbacks, 'update_basket_quantities') and callable(callbacks.update_basket_quantities):
-    state_manager.initialize_session_state(callbacks.update_basket_quantities)
-else:
-    st.error("오류: callbacks 모듈 또는 update_basket_quantities 함수를 찾을 수 없습니다.")
-    st.stop()
+# Initialize session state.
+# The update_basket_callback argument was previously unused in state_manager.initialize_session_state.
+state_manager.initialize_session_state()
 
-# --- Recalculate Volume/Weight/Recommendation and Update Dependent States BEFORE Rendering Tabs ---
-try:
-    # Determine current_move_type_main
-    move_type_options_main = getattr(state_manager, 'MOVE_TYPE_OPTIONS', None)
-    default_move_type_app = None
-    if move_type_options_main:
-        default_move_type_app = move_type_options_main[0]
-    elif hasattr(data, 'item_definitions') and data.item_definitions: # Fallback if MOVE_TYPE_OPTIONS is missing
-        default_move_type_app = list(data.item_definitions.keys())[0]
-        # st.warning("MOVE_TYPE_OPTIONS를 찾을 수 없어 data.item_definitions의 첫 번째 키를 사용합니다.") # 사용자에게 알림 최소화
-    
-    current_move_type_main = st.session_state.get('base_move_type', default_move_type_app)
-
-    if not current_move_type_main:
-        # This case should ideally not be reached if defaults are set properly
-        st.error("이사 유형을 결정할 수 없습니다. data.py 또는 state_manager.py를 확인하세요.")
-        st.session_state.total_volume = 0.0
-        st.session_state.total_weight = 0.0
-        st.session_state.recommended_vehicle_auto = None
-        st.session_state.remaining_space = 0.0
-    else:
-        # Calculate total volume and weight
-        st.session_state.total_volume, st.session_state.total_weight = calculations.calculate_total_volume_weight(
-            st.session_state.to_dict(), current_move_type_main
-        )
-        # Recommend vehicle based on new totals and current move type
-        rec_vehicle, rem_space = calculations.recommend_vehicle(
-            st.session_state.total_volume,
-            st.session_state.total_weight,
-            current_move_type_main # Pass current_move_type
-        )
-        st.session_state.recommended_vehicle_auto = rec_vehicle
-        st.session_state.remaining_space = rem_space
-
-    # CRITICAL: Update final_selected_vehicle and basket quantities immediately
-    # after recommended_vehicle_auto is determined.
-    if hasattr(callbacks, 'update_basket_quantities') and callable(callbacks.update_basket_quantities):
-        # print("DEBUG APP: Calling update_basket_quantities AFTER recommendation in app.py")
-        callbacks.update_basket_quantities()
-    else:
-        # This warning might be redundant if already checked during initialization
-        st.warning("콜백 함수 'update_basket_quantities'를 찾을 수 없어 차량/바구니 자동 업데이트에 문제가 있을 수 있습니다.")
-
-except Exception as calc_error:
-     st.error(f"물량 계산 또는 콜백 실행 중 오류 발생: {calc_error}")
-     traceback.print_exc()
-     # Set defaults on error
-     st.session_state.total_volume = 0.0
-     st.session_state.total_weight = 0.0
-     st.session_state.recommended_vehicle_auto = None
-     st.session_state.remaining_space = 0.0
-     # Ensure dependent states are also reset or updated
-     if hasattr(callbacks, 'update_basket_quantities') and callable(callbacks.update_basket_quantities):
-        # print("DEBUG APP: Calling update_basket_quantities AFTER EXCEPTION in app.py")
-        callbacks.update_basket_quantities() # This will use recommended_vehicle_auto = None
-
+# All calculations and state updates (total volume, weight, recommended vehicle, 
+# final selected vehicle, basket quantities) are now handled by callbacks 
+# triggered by widget interactions (on_change events in ui_tab1, ui_tab2, ui_tab3).
+# The app will simply re-render with the latest state after a callback execution.
 
 # --- Define and Render Tabs ---
-# Now that all critical states (recommended_vehicle_auto, final_selected_vehicle, basket quantities)
-# are presumably up-to-date, render the tabs.
+# Tabs will render using the most current session state, which is updated by callbacks.
 tab1, tab2, tab3 = st.tabs(["👤 고객 정보", "📋 물품 선택", "💰 견적 및 비용"])
 
 with tab1:
     ui_tab1.render_tab1()
 
 with tab2:
-    # Tab 2 will display the latest recommended_vehicle_auto
-    # and the basket quantities as updated by the callback.
     ui_tab2.render_tab2()
 
 with tab3:
-    # Tab 3 will use the latest final_selected_vehicle for its display
-    # and for cost calculations.
     ui_tab3.render_tab3()
 
 # Optional: Footer or other elements outside tabs can go here
+
