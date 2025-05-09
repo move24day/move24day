@@ -37,7 +37,7 @@ def update_basket_quantities():
     """
     Updates final_selected_vehicle based on the current recommendation or manual choice,
     and then updates basket item quantities in session_state accordingly.
-    This function is crucial for synchronizing vehicle selection and basket defaults.
+    If no vehicle is selected/recommended, attempts to use "1톤" defaults for baskets.
     """
     # print("\n--- update_basket_quantities CALLED ---") # For debugging
 
@@ -51,29 +51,29 @@ def update_basket_quantities():
     if hasattr(data, 'vehicle_prices') and data is not None and current_move_type in data.vehicle_prices:
         available_trucks_for_type = list(data.vehicle_prices[current_move_type].keys())
     
-    # print(f"DEBUG CB: vehicle_choice=\'{vehicle_choice}\', current_move_type=\'{current_move_type}\'")
+    # print(f"DEBUG CB: vehicle_choice='{vehicle_choice}', current_move_type='{current_move_type}'")
     # print(f"DEBUG CB: available_trucks_for_type={available_trucks_for_type}")
 
     if vehicle_choice == "자동 추천 차량 사용":
         recommended_auto = st.session_state.get('recommended_vehicle_auto')
-        # print(f"DEBUG CB: recommended_auto=\'{recommended_auto}\'")
+        # print(f"DEBUG CB: recommended_auto='{recommended_auto}'")
         if recommended_auto and "초과" not in recommended_auto:
             if recommended_auto in available_trucks_for_type:
                 _selected_vehicle_candidate = recommended_auto
-                # print(f"DEBUG CB: Auto - Candidate set to \'{_selected_vehicle_candidate}\'")
+                # print(f"DEBUG CB: Auto - Candidate set to '{_selected_vehicle_candidate}'")
             else:
                 _selected_vehicle_candidate = None 
-                # print(f"DEBUG CB: Auto - Recommended \'{recommended_auto}\' not in available trucks. Candidate is None.")
+                # print(f"DEBUG CB: Auto - Recommended '{recommended_auto}' not in available trucks. Candidate is None.")
         else:
             _selected_vehicle_candidate = None 
-            # print(f"DEBUG CB: Auto - No valid recommendation (None or \'초과\'). Candidate is None.")
+            # print(f"DEBUG CB: Auto - No valid recommendation (None or '초과'). Candidate is None.")
             
     else: # Manual selection
         manual_choice = st.session_state.get('manual_vehicle_select_value')
-        # print(f"DEBUG CB: Manual - manual_choice=\'{manual_choice}\'")
+        # print(f"DEBUG CB: Manual - manual_choice='{manual_choice}'")
         if manual_choice and manual_choice in available_trucks_for_type:
             _selected_vehicle_candidate = manual_choice
-            # print(f"DEBUG CB: Manual - Candidate set to \'{_selected_vehicle_candidate}\'")
+            # print(f"DEBUG CB: Manual - Candidate set to '{_selected_vehicle_candidate}'")
         else:
             _selected_vehicle_candidate = None
             # print(f"DEBUG CB: Manual - Invalid or no manual choice. Candidate is None.")
@@ -95,18 +95,40 @@ def update_basket_quantities():
 
     if not hasattr(data, 'default_basket_quantities') or data is None:
         # print("ERROR CB: data.default_basket_quantities not found.")
+        # Set all defined basket items to 0 if no defaults are available at all
+        for item_name_basket in basket_items_in_def:
+            key_basket = f"qty_{current_move_type}_{basket_section_name}_{item_name_basket}"
+            st.session_state[key_basket] = 0
         return
 
-    if final_vehicle_for_baskets and final_vehicle_for_baskets in data.default_basket_quantities:
-        defaults = data.default_basket_quantities[final_vehicle_for_baskets]
-        # print(f"DEBUG CB: Baskets - Using defaults for \'{final_vehicle_for_baskets}\': {defaults}")
+    # Determine the vehicle to use for fetching default basket quantities
+    target_vehicle_for_defaults = final_vehicle_for_baskets
+    if not target_vehicle_for_defaults: # If no vehicle is currently selected or recommended
+        # Attempt to use "1톤" as the default for basket quantities as per user request
+        if "1톤" in data.default_basket_quantities and "1톤" in available_trucks_for_type:
+            target_vehicle_for_defaults = "1톤"
+            # print(f"DEBUG CB: Baskets - No vehicle selected, defaulting to '1톤' for basket quantities.")
+        # else:
+            # print(f"DEBUG CB: Baskets - No vehicle selected, and '1톤' defaults not found or '1톤' not available for move type. Baskets will be 0 or based on item definitions.")
+
+    if target_vehicle_for_defaults and target_vehicle_for_defaults in data.default_basket_quantities:
+        defaults = data.default_basket_quantities[target_vehicle_for_defaults]
+        # print(f"DEBUG CB: Baskets - Using defaults for '{target_vehicle_for_defaults}': {defaults}")
         for item_name, qty in defaults.items():
             if item_name in basket_items_in_def: # Ensure item_name is a valid basket item for the current move_type
                 key = f"qty_{current_move_type}_{basket_section_name}_{item_name}"
                 st.session_state[key] = qty 
                 # print(f"DEBUG CB: Baskets - Set {key} = {qty}")
+            # else: # print(f"DEBUG CB: Baskets - Item '{item_name}' from defaults not in defined basket items for this move type.")
+        # Ensure any basket items defined for the move type but NOT in the vehicle's defaults are set to 0
+        for defined_basket_item in basket_items_in_def:
+            if defined_basket_item not in defaults:
+                key_defined_basket = f"qty_{current_move_type}_{basket_section_name}_{defined_basket_item}"
+                st.session_state[key_defined_basket] = 0
+                # print(f"DEBUG CB: Baskets - Set {key_defined_basket} = 0 (not in vehicle defaults)")
+
     else:
-        # print(f"DEBUG CB: Baskets - No vehicle (\'{final_vehicle_for_baskets}\') or no defaults. Setting baskets to 0.")
+        # print(f"DEBUG CB: Baskets - No vehicle ('{final_vehicle_for_baskets}') or no defaults for '{target_vehicle_for_defaults}'. Setting all defined baskets to 0.")
         for item_name_basket in basket_items_in_def: # Ensure we only zero out defined basket items
             key_basket = f"qty_{current_move_type}_{basket_section_name}_{item_name_basket}"
             st.session_state[key_basket] = 0
@@ -198,6 +220,8 @@ def handle_item_update():
         st.session_state.recommended_vehicle_auto = None
         st.session_state.remaining_space = 0.0
     
+    # This call is crucial: it will use the new recommended_vehicle_auto (or manual choice)
+    # to determine final_selected_vehicle and then update basket quantities, including the new "1톤" default logic.
     if callable(update_basket_quantities):
         update_basket_quantities()
     # print("DEBUG CALLBACKS: handle_item_update FINISHED")
