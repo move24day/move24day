@@ -53,8 +53,9 @@ STATE_KEYS_TO_SAVE = [
 ]
 
 # --- Session State Initialization ---
-def initialize_session_state(update_basket_callback):
+def initialize_session_state(update_basket_callback=None):
     """Initializes session state variables."""
+    # print("DEBUG SM: initialize_session_state CALLED")
     try: kst = pytz.timezone("Asia/Seoul"); default_date = datetime.now(kst).date()
     except Exception: default_date = datetime.now().date()
 
@@ -75,14 +76,17 @@ def initialize_session_state(update_basket_callback):
         "special_notes": "", "storage_duration": 1,
         "storage_use_electricity": False, # 전기사용 기본값 False
         "long_distance_selector": data.long_distance_options[0] if hasattr(data, 'long_distance_options') and data.long_distance_options else "선택 안 함",
-        "vehicle_select_radio": "자동 추천 차량 사용", "manual_vehicle_select_value": None,
-        "final_selected_vehicle": None, "sky_hours_from": 1, "sky_hours_final": 1,
+        "vehicle_select_radio": "자동 추천 차량 사용", 
+        "manual_vehicle_select_value": None, # 초기에는 수동 선택 차량 없음
+        "final_selected_vehicle": None, # 초기에는 최종 선택 차량 없음
+        "recommended_vehicle_auto": None, # 초기에는 자동 추천 차량 없음
+        "sky_hours_from": 1, "sky_hours_final": 1,
         "add_men": 0, "add_women": 0, "has_waste_check": False, "waste_tons_input": 0.5,
         "date_opt_0_widget": False, "date_opt_1_widget": False, "date_opt_2_widget": False,
         "date_opt_3_widget": False, "date_opt_4_widget": False,
         "tab3_date_opt_0_widget": False, "tab3_date_opt_1_widget": False, "tab3_date_opt_2_widget": False,
         "tab3_date_opt_3_widget": False, "tab3_date_opt_4_widget": False,
-        "total_volume": 0.0, "total_weight": 0.0, "recommended_vehicle_auto": None,
+        "total_volume": 0.0, "total_weight": 0.0, 
         'pdf_data_customer': None, 'final_excel_data': None,
         "deposit_amount": 0,
         "adjustment_amount": 0,
@@ -101,13 +105,15 @@ def initialize_session_state(update_basket_callback):
         "has_via_point": False,
         "via_point_location": "",
         "via_point_method": data.METHOD_OPTIONS[0] if hasattr(data, 'METHOD_OPTIONS') and data.METHOD_OPTIONS else "사다리차 🪜",
+        "_app_initialized": True # Mark as initialized
     }
     # Initialize state
     for key, value in defaults.items():
-        if key not in st.session_state: st.session_state[key] = value
+        if key not in st.session_state: 
+            st.session_state[key] = value
+            # print(f"DEBUG SM: Initialized st.session_state.{key} = {value}")
 
     # Sync widget states
-    if 'base_move_type' not in st.session_state: st.session_state.base_move_type = defaults['base_move_type']
     if st.session_state.base_move_type_widget_tab1 != st.session_state.base_move_type: st.session_state.base_move_type_widget_tab1 = st.session_state.base_move_type
     if st.session_state.base_move_type_widget_tab3 != st.session_state.base_move_type: st.session_state.base_move_type_widget_tab3 = st.session_state.base_move_type
 
@@ -168,18 +174,29 @@ def initialize_session_state(update_basket_callback):
                         for item in item_list:
                             if hasattr(data, 'items') and item in data.items:
                                 key = f"qty_{move_type}_{section}_{item}"; item_keys_to_save.append(key)
-                                if key not in st.session_state and key not in processed_init_keys: st.session_state[key] = 0
+                                if key not in st.session_state and key not in processed_init_keys: 
+                                    st.session_state[key] = 0
+                                    # print(f"DEBUG SM: Initialized item key {key} = 0")
                                 processed_init_keys.add(key)
-    else: print("Warning: data.item_definitions not found or empty during state initialization.")
+    # else: print("Warning: data.item_definitions not found or empty during state initialization.")
     STATE_KEYS_TO_SAVE = list(set(STATE_KEYS_TO_SAVE + item_keys_to_save))
     if 'prev_final_selected_vehicle' not in st.session_state: st.session_state['prev_final_selected_vehicle'] = st.session_state.get('final_selected_vehicle')
 
+    # After all other initializations, call the basket update callback if provided
+    # This ensures that initial basket quantities are set based on the initial (likely "1톤") vehicle state.
+    if callable(update_basket_callback):
+        # print("DEBUG SM: Calling update_basket_callback during initialization.")
+        update_basket_callback()
+    # else:
+        # print("DEBUG SM: update_basket_callback not callable or not provided during init.")
+    # print("DEBUG SM: initialize_session_state FINISHED")
 
 # --- State Save/Load Helpers ---
 def prepare_state_for_save():
     """Prepares the current session state for saving (e.g., to JSON)."""
     state_to_save = {}
     keys_to_exclude = {
+        '_app_initialized', # Do not save this internal flag
         'base_move_type_widget_tab1', 'base_move_type_widget_tab3',
         'gdrive_selected_filename_widget',
         'pdf_data_customer', 'final_excel_data',
@@ -286,48 +303,31 @@ def load_state_from_data(loaded_data, update_basket_callback):
                 elif key in bool_keys:
                     if isinstance(value, str): target_value = value.lower() in ['true', 'yes', '1', 'on']
                     else: target_value = bool(value)
-                elif key in list_keys: target_value = list(value) if isinstance(value, list) else defaults_for_recovery.get(key, [])
-                else: target_value = value
+                elif key in list_keys: target_value = list(value) if value is not None else [] 
+                else: target_value = value # For strings and other types
+                st.session_state[key] = target_value
+                load_success_count += 1
+            except (ValueError, TypeError) as e:
+                st.warning(f"키 '{key}' 로드 중 오류 (값: {original_value}, 타입: {type(original_value)}): {e}. 기본값으로 대체합니다.")
+                st.session_state[key] = defaults_for_recovery.get(key)
+                load_error_count += 1
+        else: # Key not in loaded_data, set to default
+            st.session_state[key] = defaults_for_recovery.get(key)
 
-                st.session_state[key] = target_value; load_success_count += 1
-
-                # UI용 키 업데이트
-                if key == "tab3_deposit_amount": st.session_state["deposit_amount"] = target_value
-                if key == "tab3_adjustment_amount": st.session_state["adjustment_amount"] = target_value
-                if key == "tab3_regional_ladder_surcharge": st.session_state["regional_ladder_surcharge"] = target_value
-                if key == "via_point_surcharge": st.session_state["via_point_surcharge"] = target_value # UI 키와 동일
-                if key.startswith("tab3_date_opt_"):
-                    ui_key = key.replace("tab3_", "")
-                    st.session_state[ui_key] = target_value
-
-            except (ValueError, TypeError, KeyError) as e:
-                load_error_count += 1; default_val = defaults_for_recovery.get(key); st.session_state[key] = default_val
-                print(f"Warning: Error loading key '{key}' (Value: {original_value}, Type: {type(original_value)}). Error: {e}. Used default: {default_val}")
-
-    if load_error_count > 0: st.warning(f"일부 항목({load_error_count}개) 로딩 중 오류가 발생하여 기본값으로 설정되었거나 무시되었습니다.")
-
-    st.session_state.gdrive_search_results = []; st.session_state.gdrive_file_options_map = {}
-    st.session_state.gdrive_selected_filename = None; st.session_state.gdrive_selected_file_id = None
-
+    # Sync base_move_type with widgets after loading
     if 'base_move_type' in st.session_state:
-        loaded_move_type = st.session_state.base_move_type
-        valid_move_type_options_load = globals().get('MOVE_TYPE_OPTIONS')
-        if not isinstance(loaded_move_type, str) or (valid_move_type_options_load and loaded_move_type not in valid_move_type_options_load):
-             loaded_move_type = valid_move_type_options_load[0] if valid_move_type_options_load else "가정 이사 🏠"
-             st.session_state.base_move_type = loaded_move_type
-        st.session_state.base_move_type_widget_tab1 = loaded_move_type
-        st.session_state.base_move_type_widget_tab3 = loaded_move_type
+        st.session_state.base_move_type_widget_tab1 = st.session_state.base_move_type
+        st.session_state.base_move_type_widget_tab3 = st.session_state.base_move_type
+    
+    # After loading all state, call the basket update callback
+    if callable(update_basket_callback):
+        # print("DEBUG SM: Calling update_basket_callback after loading state.")
+        update_basket_callback()
+    # else:
+        # print("DEBUG SM: update_basket_callback not callable or not provided after loading state.")
 
-    update_basket_callback()
-
-    # 로드 후 보관 기간 재계산
-    if st.session_state.get('is_storage_move'):
-        moving_dt_load = st.session_state.get('moving_date')
-        arrival_dt_load = st.session_state.get('arrival_date')
-        if isinstance(moving_dt_load, date) and isinstance(arrival_dt_load, date) and arrival_dt_load >= moving_dt_load:
-            delta_load = arrival_dt_load - moving_dt_load
-            st.session_state.storage_duration = max(1, delta_load.days + 1)
-        else: # 날짜가 이상하면 기본 1일
-            st.session_state.storage_duration = 1
-
+    if load_error_count > 0:
+        st.warning(f"{load_error_count}개의 항목을 로드하는 중 오류가 발생하여 기본값으로 대체되었습니다.")
+    st.success(f"{load_success_count}개의 항목을 성공적으로 로드했습니다.")
     return True
+

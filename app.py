@@ -34,7 +34,7 @@ except Exception as e:
 # 5. Import the NEWLY CREATED modules
 try:
     import state_manager
-    import callbacks
+    import callbacks # callbacks must be imported before being passed
     import ui_tab1
     import ui_tab2
     import ui_tab3
@@ -53,8 +53,15 @@ st.markdown("<h1 style=\'text-align: center; color: #1E90FF;\'>🚚 이삿날 �
 st.write("")
 
 # Initialize session state.
-# The update_basket_callback argument was previously unused in state_manager.initialize_session_state.
-state_manager.initialize_session_state()
+# Pass the callback function for initial basket quantity setup.
+# Ensure this runs only once per session to avoid re-initializing over reruns.
+if not st.session_state.get("_app_initialized", False):
+    # print("DEBUG APP: Initializing session state for the first time.")
+    state_manager.initialize_session_state(update_basket_callback=callbacks.update_basket_quantities)
+    st.session_state._app_initialized = True
+# else:
+    # print("DEBUG APP: Session state already initialized or app rerun.")
+
 
 # All calculations and state updates (total volume, weight, recommended vehicle, 
 # final selected vehicle, basket quantities) are now handled by callbacks 
