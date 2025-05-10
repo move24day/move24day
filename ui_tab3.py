@@ -1,5 +1,5 @@
 # ui_tab3.py
-# ui_tab3.py (실제 투입 인력 정보 테이블 완전 삭제, 이사 정보 요약 표시)
+# ui_tab3.py (실제 투입 차량 정보 입력란 완전 삭제)
 import streamlit as st
 import pandas as pd
 import io
@@ -49,8 +49,6 @@ except Exception as e:
 
 def render_tab3():
     """Renders the UI for Tab 3: Costs, Options, and Downloads."""
-    # st.write("DEBUG: render_tab3 함수 시작") # 디버깅 메시지
-
     st.header("💰 계산 및 옵션 ")
 
     update_basket_quantities_callback = getattr(callbacks, "update_basket_quantities", None)
@@ -164,19 +162,14 @@ def render_tab3():
                 if sky_from: st.number_input("출발 스카이 시간(h)", min_value=1, step=1, key="sky_hours_from")
             with cols_sky[1]:
                 if sky_to: st.number_input("도착 스카이 시간(h)", min_value=1, step=1, key="sky_hours_final")
-            st.write("")
+            st.write("") # Add spacing after sky hours if they are shown
+
         col_add1, col_add2 = st.columns(2)
         with col_add1: st.number_input("추가 남성 인원 👨", min_value=0, step=1, key="add_men", help="기본 인원 외 추가로 필요한 남성 작업자 수")
         with col_add2: st.number_input("추가 여성 인원 👩", min_value=0, step=1, key="add_women", help="기본 인원 외 추가로 필요한 여성 작업자 수")
-        st.write("")
-        st.subheader("🚚 실제 투입 차량 ")
-        dispatched_cols = st.columns(4)
-        with dispatched_cols[0]: st.number_input("1톤", min_value=0, step=1, key="dispatched_1t")
-        with dispatched_cols[1]: st.number_input("2.5톤", min_value=0, step=1, key="dispatched_2_5t")
-        with dispatched_cols[2]: st.number_input("3.5톤", min_value=0, step=1, key="dispatched_3_5t")
-        with dispatched_cols[3]: st.number_input("5톤", min_value=0, step=1, key="dispatched_5t")
-        st.caption("견적 계산과 별개로, 실제 현장에 투입될 차량 대수를 입력합니다. (Excel 출력 등에 사용)")
-        st.write("")
+        
+        # "실제 투입 차량" 섹션 완전 삭제
+        
         base_w,remove_opt,discount_amount = 0,False,0
         final_vehicle_for_hw = st.session_state.get("final_selected_vehicle")
         current_move_type_for_hw = st.session_state.get("base_move_type")
@@ -189,13 +182,184 @@ def render_tab3():
                     base_w = int(base_w_raw) if base_w_raw is not None else 0
                     if base_w > 0: remove_opt, add_cost_hw = True, getattr(data, "ADDITIONAL_PERSON_COST", 0); discount_amount = add_cost_hw * base_w if isinstance(add_cost_hw, (int, float)) else 0
                 except: base_w = 0
-        if remove_opt: st.checkbox(f"기본 여성({base_w}명) 제외 (비용 할인: -{discount_amount:,.0f}원)", key="remove_base_housewife")
+        
+        if remove_opt: 
+            st.checkbox(f"기본 여성({base_w}명) 제외 (비용 할인: -{discount_amount:,.0f}원)", key="remove_base_housewife")
         else:
-            if "remove_base_housewife" in st.session_state: st.session_state.remove_base_housewife = False
+            if "remove_base_housewife" in st.session_state: 
+                st.session_state.remove_base_housewife = False
+        
         col_waste1, col_waste2 = st.columns([1, 2])
-        with col_waste1: st.checkbox("폐기물 처리 필요 🗑️", key="has_waste_check", help="톤 단위 직접 입력 방식입니다.")
+        with col_waste1: 
+            st.checkbox("폐기물 처리 필요 🗑️", key="has_waste_check", help="톤 단위 직접 입력 방식입니다.")
         with col_waste2:
             if st.session_state.get("has_waste_check"):
                 waste_cost_per_ton_disp,waste_cost_val_disp = getattr(data, "WASTE_DISPOSAL_COST_PER_TON", 0),0
                 if isinstance(waste_cost_per_ton_disp, (int, float)): waste_cost_val_disp = waste_cost_per_ton_disp
-                st.number_input("폐기물 양 (톤)", min_value=0.5, max_value=10.0, step=0.5
+                st.number_input(
+                    "폐기물 양 (톤)", 
+                    min_value=0.5, max_value=10.0, step=0.5, key="waste_tons_input",
+                    help=f"톤당 처리 비용: {waste_cost_val_disp:,.0f}원"
+                )
+        st.write("")
+
+        st.markdown("##### **🗓️ 이사일 특수조건 할증 (선택 시 자동 합산)**")
+        date_options = ["이사많은날 🏠", "손없는날 ✋", "월말 📅", "공휴일 🎉", "금요일 📅"]
+        date_cols = st.columns(len(date_options))
+        for i, option in enumerate(date_options):
+            surcharge_val = data.special_day_prices.get(option, 0) if hasattr(data, "special_day_prices") else 0
+            date_cols[i].checkbox(
+                f"{option.split(' ')[0]} (+{surcharge_val:,.0f})", # 공백 뒤 아이콘 제외하고 표시
+                key=f"date_opt_{i}_widget",
+                help=f"{option} 선택 시 {surcharge_val:,.0f}원 할증"
+            )
+        st.write("") # Add spacing after date options
+
+        st.number_input("지방 사다리 추가요금", min_value=0, step=10000, key="regional_ladder_surcharge", help="지방으로 이동 시 사다리차 사용에 대한 추가 요금입니다.")
+        if st.session_state.get("has_via_point"):
+            st.number_input("경유지 추가 요금", min_value=0, step=10000, key="via_point_surcharge", help="경유지 작업에 대한 추가 요금입니다.")
+
+    st.divider()
+
+    # --- Cost Calculation Display ---
+    with st.container(border=True):
+        st.subheader("📊 최종 견적 비용")
+        calculated_total_cost, cost_breakdown_items, personnel_summary = calculations.calculate_total_moving_cost(st.session_state.to_dict())
+
+        if not st.session_state.get("final_selected_vehicle"):
+            st.error("⚠️ 차량이 선택되지 않아 정확한 비용 계산이 불가능합니다. 차량을 선택해주세요.")
+        else:
+            cost_df_data = []
+            for item_desc, item_cost, item_note in cost_breakdown_items:
+                cost_df_data.append({
+                    "항목": item_desc,
+                    "금액": f"{item_cost:,.0f} 원",
+                    "비고": item_note
+                })
+            
+            cost_df = pd.DataFrame(cost_df_data)
+            st.dataframe(cost_df, hide_index=True, use_container_width=True)
+
+            st.markdown(f"#### **총 예상 비용 (VAT 별도): <span style='color:blue; float:right;'>{calculated_total_cost:,.0f} 원</span>**", unsafe_allow_html=True)
+
+            cols_final_cost = st.columns(2)
+            with cols_final_cost[0]:
+                st.number_input("계약금 (선금)", min_value=0, step=10000, key="deposit_amount", help="계약 시 지불하는 금액입니다.")
+            with cols_final_cost[1]:
+                st.number_input("금액 조정 (+/-)", step=1000, key="adjustment_amount", help="최종 견적에서 추가 할증 또는 할인 금액을 입력합니다. (예: -50000)")
+
+            final_display_cost = calculated_total_cost + st.session_state.get("adjustment_amount", 0)
+            balance_due = final_display_cost - st.session_state.get("deposit_amount", 0)
+            
+            st.markdown(f"---")
+            st.markdown(f"### **최종 합계 (VAT 별도): <span style='color:red; float:right;'>{final_display_cost:,.0f} 원</span>**", unsafe_allow_html=True)
+            st.markdown(f"##### **잔금 (VAT 별도): <span style='float:right;'>{balance_due:,.0f} 원</span>**", unsafe_allow_html=True)
+
+
+    st.divider()
+
+    # --- Download and Send Section ---
+    if st.session_state.get("final_selected_vehicle"):
+        with st.container(border=True):
+            st.subheader("📤 견적서 다운로드 및 발송")
+            
+            # --- PDF and Excel Generation ---
+            # Always generate data for download buttons
+            pdf_bytes_customer = None
+            final_excel_bytes = None
+            quote_image_bytes = None
+
+            if 'pdf_generator' in globals() and callable(pdf_generator.generate_pdf):
+                pdf_bytes_customer = pdf_generator.generate_pdf(
+                    st.session_state.to_dict(),
+                    cost_breakdown_items,
+                    final_display_cost, # 최종 조정된 금액 전달
+                    personnel_summary
+                )
+            else: st.warning("PDF 생성 모듈(pdf_generator)이 없어 PDF 생성이 비활성화되었습니다.")
+
+            if pdf_bytes_customer and 'pdf_generator' in globals() and callable(pdf_generator.generate_quote_image_from_pdf):
+                quote_image_bytes = pdf_generator.generate_quote_image_from_pdf(pdf_bytes_customer, image_format='JPEG')
+            elif pdf_bytes_customer: st.warning("PDF 이미지 변환 모듈이 없어 MMS용 이미지 생성이 비활성화되었습니다.")
+
+
+            if 'excel_filler' in globals() and callable(excel_filler.fill_final_excel_template):
+                 final_excel_bytes = excel_filler.fill_final_excel_template(
+                    st.session_state.to_dict(),
+                    cost_breakdown_items,
+                    final_display_cost, # 최종 조정된 금액 전달
+                    personnel_summary
+                )
+            else: st.warning("Excel 생성 모듈(excel_filler)이 없어 Excel 생성이 비활성화되었습니다.")
+
+
+            customer_phone_for_filename = utils.extract_phone_number_part(st.session_state.get("customer_phone", ""), default="견적")
+            kst_filename_part = utils.get_current_kst_time_str("%Y%m%d")
+
+            # --- Download Buttons ---
+            col_pdf, col_excel, col_email_send, col_mms_send = st.columns(4)
+            with col_pdf:
+                if pdf_bytes_customer:
+                    st.download_button(
+                        label="📄 PDF 견적서 다운로드",
+                        data=pdf_bytes_customer,
+                        file_name=f"이삿날견적서_{customer_phone_for_filename}_{kst_filename_part}.pdf",
+                        mime="application/pdf",
+                        use_container_width=True
+                    )
+                else: st.button("📄 PDF 견적서 다운로드", disabled=True, use_container_width=True)
+
+            with col_excel:
+                if final_excel_bytes:
+                    st.download_button(
+                        label="📊 Excel 견적서 다운로드",
+                        data=final_excel_bytes,
+                        file_name=f"이삿날견적서_상세_{customer_phone_for_filename}_{kst_filename_part}.xlsx",
+                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                        use_container_width=True
+                    )
+                else: st.button("📊 Excel 견적서 다운로드", disabled=True, use_container_width=True)
+
+            # --- Email Send ---
+            with col_email_send:
+                email_button_disabled = not pdf_bytes_customer or not st.session_state.get("customer_email") or 'email_utils' not in globals()
+                if st.button("📧 이메일로 견적 발송", disabled=email_button_disabled, use_container_width=True):
+                    if 'email_utils' in globals() and callable(email_utils.send_quote_email):
+                        recipient = st.session_state.get("customer_email")
+                        cust_name = st.session_state.get("customer_name", "고객")
+                        subject = f"[이삿날] {cust_name}님의 이사 견적서입니다."
+                        body = f"{cust_name}님, 요청하신 이사 견적서를 첨부파일로 보내드립니다.\n\n감사합니다.\n이삿날 드림"
+                        pdf_name_email = f"이삿날견적서_{customer_phone_for_filename}_{kst_filename_part}.pdf"
+                        
+                        with st.spinner("이메일 발송 중..."):
+                            email_sent = email_utils.send_quote_email(recipient, subject, body, pdf_bytes_customer, pdf_name_email)
+                        if email_sent:
+                            st.success(f"{recipient}(으)로 견적서 이메일 발송 성공!")
+                        # 실패 메시지는 email_utils 내부에서 st.error로 표시
+                    else:
+                        st.error("이메일 발송 모듈(email_utils)이 준비되지 않았습니다.")
+            
+            # --- MMS Send ---
+            with col_mms_send:
+                mms_button_disabled = not quote_image_bytes or not st.session_state.get("customer_phone") or 'mms_utils' not in globals()
+                if st.button("📱 MMS로 견적 발송", disabled=mms_button_disabled, use_container_width=True):
+                    if 'mms_utils' in globals() and callable(mms_utils.send_mms_with_image):
+                        recipient_phone_mms = st.session_state.get("customer_phone")
+                        cust_name_mms = st.session_state.get("customer_name", "고객")
+                        text_msg_mms = f"{cust_name_mms}님, 요청하신 이사 견적서 이미지입니다. 확인 후 연락주시면 감사하겠습니다. -이삿날-"
+                        img_filename_mms = f"견적서_{customer_phone_for_filename}_{kst_filename_part}.jpg"
+                        
+                        with st.spinner("MMS 발송 준비 중... (실제 발송은 게이트웨이 연동 필요)"):
+                            mms_sent = mms_utils.send_mms_with_image(recipient_phone_mms, quote_image_bytes, img_filename_mms, text_msg_mms)
+                        
+                        if mms_sent: # 실제 연동 시 성공 여부 판단
+                            st.success(f"{recipient_phone_mms}(으)로 견적 이미지 MMS 발송 성공!")
+                        else:
+                            # 실패 메시지는 mms_utils 내부 또는 여기서 상세화 가능
+                            st.warning("MMS 발송 기능이 아직 완전히 연동되지 않았거나, 발송에 실패했습니다. (mms_utils.py 확인 필요)")
+                    else:
+                        st.error("MMS 발송 모듈(mms_utils)이 준비되지 않았습니다.")
+
+    # --- Display Current KST Time ---
+    current_kst = utils.get_current_kst_time_str() if 'utils' in globals() and hasattr(utils, 'get_current_kst_time_str') else "시간 로드 실패"
+    st.caption(f"현재 시간 (KST): {current_kst}")
