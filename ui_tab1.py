@@ -27,16 +27,16 @@ except Exception as e:
     st.error(f"UI Tab 1: 모듈 로딩 중 오류 - {e}")
     st.stop()
 
-UPLOAD_DIR = "/home/ubuntu/uploads/images"
+UPLOAD_DIR = "/home/ubuntu/uploads/images" # 실제 서버 경로 또는 로컬 테스트 경로
 if not os.path.exists(UPLOAD_DIR):
     os.makedirs(UPLOAD_DIR)
 
 def render_tab1():
-    """Renders the UI for Tab 1: Customer Info and Google Drive."""
+    """Renders the UI for Tab 1: Customer Info and Google Drive.""" # <--- 여기가 31번째 줄 근처일 수 있습니다.
 
     # === Google Drive Section ===
     with st.container(border=True):
-        st.subheader("☁️ Google Drive 연동")
+        st.subheader("☁️ Google Drive 연동") # <--- 여기가 35번째 줄 근처일 수 있습니다.
         st.caption("Google Drive의 지정된 폴더에 견적(JSON) 파일을 저장하고 불러옵니다.")
         col_load, col_save = st.columns(2)
 
@@ -54,7 +54,7 @@ def render_tab1():
                     with st.spinner("🔄 Google Drive에서 JSON 검색 중..."):
                         # Broad search using 'contains' first
                         all_gdrive_results = gdrive.find_files_by_name_contains(search_term_strip, mime_types="application/json")
-                    
+
                     processed_results = []
                     if all_gdrive_results:
                         if len(search_term_strip) == 4 and search_term_strip.isdigit():
@@ -66,7 +66,7 @@ def render_tab1():
                         else:
                             # For full phone number or other searches, use results that contain the term.
                             # If user types full phone number, `name contains` should find it.
-                            processed_results = all_gdrive_results 
+                            processed_results = all_gdrive_results
                             # Optional: more strict matching for full phone numbers if needed:
                             # if search_term_strip.isdigit() and len(search_term_strip) > 4:
                             #     temp_results = []
@@ -132,7 +132,7 @@ def render_tab1():
 
                 if submitted:
                     customer_phone = st.session_state.get('customer_phone', '').strip()
-                    if not customer_phone or not customer_phone.isdigit(): 
+                    if not customer_phone or not customer_phone.isdigit():
                         st.error("⚠️ 저장 실패: 유효한 고객 전화번호를 입력해주세요.")
                     else:
                         json_filename = f"{customer_phone}.json"
@@ -170,9 +170,9 @@ def render_tab1():
 
     col1, col2 = st.columns(2)
     with col1:
-        st.text_input("👤 고객명", key="customer_name"); 
+        st.text_input("👤 고객명", key="customer_name");
         st.text_input("📍 출발지 주소", key="from_location");
-        if st.session_state.get('apply_long_distance'): 
+        if st.session_state.get('apply_long_distance'):
             ld_options = data.long_distance_options if hasattr(data,'long_distance_options') else []
             st.selectbox("🛣️ 장거리 구간 선택", ld_options, key="long_distance_selector")
         st.text_input("🔼 출발지 층수", key="from_floor", placeholder="예: 3, B1, -1")
@@ -200,7 +200,7 @@ def render_tab1():
     if uploaded_files:
         if 'uploaded_image_paths' not in st.session_state:
             st.session_state.uploaded_image_paths = []
-        
+
         for uploaded_file in uploaded_files:
             customer_phone_for_img = st.session_state.get('customer_phone', 'unknown_phone').strip()
             if not customer_phone_for_img: customer_phone_for_img = 'no_phone'
@@ -209,7 +209,7 @@ def render_tab1():
             timestamp_str = datetime.now().strftime("%Y%m%d%H%M%S%f")
             unique_filename = f"{customer_phone_sanitized}_{timestamp_str}_{original_filename_sanitized}"
             save_path = os.path.join(UPLOAD_DIR, unique_filename)
-            
+
             try:
                 with open(save_path, "wb") as f:
                     f.write(uploaded_file.getbuffer())
@@ -228,7 +228,7 @@ def render_tab1():
              st.session_state.uploaded_image_paths = valid_image_paths # Correct the list in session state if it had non-strings
 
         if valid_image_paths:
-            cols = st.columns(3) 
+            cols = st.columns(3)
             for i, img_path in enumerate(valid_image_paths):
                 cols[i % 3].image(img_path, caption=os.path.basename(img_path), use_column_width=True)
         elif st.session_state.uploaded_image_paths: # If list had paths but none are valid now
@@ -274,5 +274,5 @@ def render_tab1():
 
     with st.container(border=True):
         st.header("🗒️ 고객 요구사항"); st.text_area("기타 특이사항이나 요청사항을 입력해주세요.", height=100, key="special_notes", placeholder="예: 에어컨 이전 설치 필요, 특정 가구 분해/조립 요청 등")
-# --- End of render_tab1 function --- 
+# --- End of render_tab1 function ---
 """
