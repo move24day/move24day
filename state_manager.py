@@ -1,6 +1,6 @@
 """
 # state_manager.py
-# state_manager.py (도착 예정일, 경유지, 보관 전기사용 옵션 추가, 이미지 경로 저장 추가)
+# state_manager.py (도착 예정일, 경유지, 보관 전기사용 옵션 추가, 이미지 경로 저장 추가, defaults 딕셔너리 문법 오류 수정)
 import streamlit as st
 from datetime import datetime, date
 import pytz
@@ -66,29 +66,29 @@ def initialize_session_state(update_basket_callback=None):
         "base_move_type": MOVE_TYPE_OPTIONS[0] if MOVE_TYPE_OPTIONS else "가정 이사 🏠",
         "is_storage_move": False,
         "storage_type": data.DEFAULT_STORAGE_TYPE if hasattr(data, 'DEFAULT_STORAGE_TYPE') else "컨테이너 보관 📦",
-        "apply_long_distance": False, "customer_name": "", "customer_phone": "",
+        "apply_long_distance": False, "customer_name": "", "customer_phone": "",   ",
         "customer_email": "",
-        "from_location": "", "to_location": "", "moving_date": default_date,
+        "from_location": "", "to_location": "", "moving_date": default_date,   ",
         "arrival_date": default_date, # 도착일 기본값
         "from_floor": "",
         "from_method": data.METHOD_OPTIONS[0] if hasattr(data, 'METHOD_OPTIONS') and data.METHOD_OPTIONS else "사다리차 🪜",
         "to_floor": "",
         "to_method": data.METHOD_OPTIONS[0] if hasattr(data, 'METHOD_OPTIONS') and data.METHOD_OPTIONS else "사다리차 🪜",
-        "special_notes": "", "storage_duration": 1,
+        "special_notes": "", "storage_duration": 1,   ",
         "storage_use_electricity": False, # 전기사용 기본값 False
         "long_distance_selector": data.long_distance_options[0] if hasattr(data, 'long_distance_options') and data.long_distance_options else "선택 안 함",
         "vehicle_select_radio": "자동 추천 차량 사용", 
         "manual_vehicle_select_value": None, 
         "final_selected_vehicle": None, 
         "recommended_vehicle_auto": None, 
-        "sky_hours_from": 1, "sky_hours_final": 1,
-        "add_men": 0, "add_women": 0, "has_waste_check": False, "waste_tons_input": 0.5,
-        "date_opt_0_widget": False, "date_opt_1_widget": False, "date_opt_2_widget": False,
-        "date_opt_3_widget": False, "date_opt_4_widget": False,
-        "tab3_date_opt_0_widget": False, "tab3_date_opt_1_widget": False, "tab3_date_opt_2_widget": False,
-        "tab3_date_opt_3_widget": False, "tab3_date_opt_4_widget": False,
-        "total_volume": 0.0, "total_weight": 0.0, 
-        'pdf_data_customer': None, 'final_excel_data': None,
+        "sky_hours_from": 1, "sky_hours_final": 1,   ",
+        "add_men": 0, "add_women": 0, "has_waste_check": False, "waste_tons_input": 0.5,   ",
+        "date_opt_0_widget": False, "date_opt_1_widget": False, "date_opt_2_widget": False,   ",
+        "date_opt_3_widget": False, "date_opt_4_widget": False,   ",
+        "tab3_date_opt_0_widget": False, "tab3_date_opt_1_widget": False, "tab3_date_opt_2_widget": False,   ",
+        "tab3_date_opt_3_widget": False, "tab3_date_opt_4_widget": False,   ",
+        "total_volume": 0.0, "total_weight": 0.0,   ",
+        'pdf_data_customer': None, 'final_excel_data': None,   ",
         "deposit_amount": 0,
         "adjustment_amount": 0,
         "regional_ladder_surcharge": 0,
@@ -96,10 +96,10 @@ def initialize_session_state(update_basket_callback=None):
         "tab3_deposit_amount": 0,
         "tab3_adjustment_amount": 0,
         "tab3_regional_ladder_surcharge": 0,
-        "remove_base_housewife": False, "prev_final_selected_vehicle": None,
-        "dispatched_1t": 0, "dispatched_2_5t": 0, "dispatched_3_5t": 0, "dispatched_5t": 0,
-        "gdrive_search_term": "", "gdrive_search_results": [],
-        "gdrive_file_options_map": {}, "gdrive_selected_filename": None,
+        "remove_base_housewife": False, "prev_final_selected_vehicle": None,   ",
+        "dispatched_1t": 0, "dispatched_2_5t": 0, "dispatched_3_5t": 0, "dispatched_5t": 0,   ",
+        "gdrive_search_term": "", "gdrive_search_results": [],   ",
+        "gdrive_file_options_map": {}, "gdrive_selected_filename": None,   ",
         "gdrive_selected_file_id": None,
         "base_move_type_widget_tab1": MOVE_TYPE_OPTIONS[0] if MOVE_TYPE_OPTIONS else "가정 이사 🏠",
         "base_move_type_widget_tab3": MOVE_TYPE_OPTIONS[0] if MOVE_TYPE_OPTIONS else "가정 이사 🏠",
@@ -140,16 +140,16 @@ def initialize_session_state(update_basket_callback=None):
             if val is None: st.session_state[k] = default_val_k; continue
 
             if k in bool_keys:
-                 if isinstance(val, str): st.session_state[k] = val.lower() in ['true', 'yes', '1', 'on']
+                 if isinstance(val, str): st.session_state[k] = val.lower() in ["true", "yes", "1", "on"]
                  else: st.session_state[k] = bool(val)
             elif k in int_keys:
-                 if isinstance(val, str) and val.strip() == '': st.session_state[k] = default_val_k; continue
+                 if isinstance(val, str) and val.strip() == "": st.session_state[k] = default_val_k; continue
                  converted_val = int(val)
                  if k in allow_negative_keys: st.session_state[k] = converted_val
                  else: st.session_state[k] = max(0, converted_val)
-                 if k == 'storage_duration': st.session_state[k] = max(1, st.session_state[k])
+                 if k == "storage_duration": st.session_state[k] = max(1, st.session_state[k])
             elif k in float_keys:
-                 if isinstance(val, str) and val.strip() == '': st.session_state[k] = default_val_k; continue
+                 if isinstance(val, str) and val.strip() == "": st.session_state[k] = default_val_k; continue
                  converted_val = float(val)
                  st.session_state[k] = max(0.0, converted_val)
             elif k in list_keys:
@@ -162,20 +162,20 @@ def initialize_session_state(update_basket_callback=None):
              elif k in list_keys: st.session_state[k] = defaults.get(k, [])
 
     global STATE_KEYS_TO_SAVE; processed_init_keys = set(); item_keys_to_save = []
-    if hasattr(data, 'item_definitions') and data.item_definitions:
+    if hasattr(data, "item_definitions") and data.item_definitions:
         for move_type, sections in data.item_definitions.items():
             if isinstance(sections, dict):
                 for section, item_list in sections.items():
                     if section == "폐기 처리 품목 🗑️": continue
                     if isinstance(item_list, list):
                         for item in item_list:
-                            if hasattr(data, 'items') and item in data.items:
+                            if hasattr(data, "items") and item in data.items:
                                 key = f"qty_{move_type}_{section}_{item}"; item_keys_to_save.append(key)
                                 if key not in st.session_state and key not in processed_init_keys: 
                                     st.session_state[key] = 0
                                 processed_init_keys.add(key)
     STATE_KEYS_TO_SAVE = list(set(STATE_KEYS_TO_SAVE + item_keys_to_save))
-    if 'prev_final_selected_vehicle' not in st.session_state: st.session_state['prev_final_selected_vehicle'] = st.session_state.get('final_selected_vehicle')
+    if "prev_final_selected_vehicle" not in st.session_state: st.session_state["prev_final_selected_vehicle"] = st.session_state.get("final_selected_vehicle")
 
     if callable(update_basket_callback):
         update_basket_callback()
@@ -183,11 +183,11 @@ def initialize_session_state(update_basket_callback=None):
 def prepare_state_for_save():
     state_to_save = {}
     keys_to_exclude = {
-        '_app_initialized',
-        'base_move_type_widget_tab1', 'base_move_type_widget_tab3',
-        'gdrive_selected_filename_widget',
-        'pdf_data_customer', 'final_excel_data',
-        'gdrive_search_results', 'gdrive_file_options_map',
+        "_app_initialized",
+        "base_move_type_widget_tab1", "base_move_type_widget_tab3",
+        "gdrive_selected_filename_widget",
+        "pdf_data_customer", "final_excel_data",
+        "gdrive_search_results", "gdrive_file_options_map",
         "deposit_amount", "adjustment_amount", "regional_ladder_surcharge",
         "via_point_surcharge",
     }
@@ -206,8 +206,8 @@ def prepare_state_for_save():
                  try: state_to_save[key] = str(value)
                  except Exception: print(f"Warning: Skipping non-serializable key '{key}' of type {type(value)} during save.")
     # Ensure uploaded_image_paths is always a list, even if empty
-    if 'uploaded_image_paths' not in state_to_save or not isinstance(state_to_save.get('uploaded_image_paths'), list):
-        state_to_save['uploaded_image_paths'] = st.session_state.get('uploaded_image_paths', [])
+    if "uploaded_image_paths" not in state_to_save or not isinstance(state_to_save.get("uploaded_image_paths"), list):
+        state_to_save["uploaded_image_paths"] = st.session_state.get("uploaded_image_paths", [])
     return state_to_save
 
 def load_state_from_data(loaded_data, update_basket_callback):
@@ -217,19 +217,19 @@ def load_state_from_data(loaded_data, update_basket_callback):
 
     try: kst = pytz.timezone("Asia/Seoul"); default_date = datetime.now(kst).date()
     except Exception: default_date = datetime.now().date()
-    current_move_type_options = globals().get('MOVE_TYPE_OPTIONS')
+    current_move_type_options = globals().get("MOVE_TYPE_OPTIONS")
     defaults_for_recovery = {
         "base_move_type": current_move_type_options[0] if current_move_type_options else "가정 이사 🏠",
-        "is_storage_move": False, "storage_type": data.DEFAULT_STORAGE_TYPE if hasattr(data, 'DEFAULT_STORAGE_TYPE') else "컨테이너 보관 📦",
+        "is_storage_move": False, "storage_type": data.DEFAULT_STORAGE_TYPE if hasattr(data, "DEFAULT_STORAGE_TYPE") else "컨테이너 보관 📦",
         "apply_long_distance": False, "customer_name": "", "customer_phone": "", "customer_email": "",
         "from_location": "", "to_location": "", "moving_date": default_date,
         "arrival_date": default_date, 
         "from_floor": "",
-        "from_method": data.METHOD_OPTIONS[0] if hasattr(data, 'METHOD_OPTIONS') and data.METHOD_OPTIONS else "사다리차 🪜",
-        "to_floor": "", "to_method": data.METHOD_OPTIONS[0] if hasattr(data, 'METHOD_OPTIONS') and data.METHOD_OPTIONS else "사다리차 🪜",
+        "from_method": data.METHOD_OPTIONS[0] if hasattr(data, "METHOD_OPTIONS") and data.METHOD_OPTIONS else "사다리차 🪜",
+        "to_floor": "", "to_method": data.METHOD_OPTIONS[0] if hasattr(data, "METHOD_OPTIONS") and data.METHOD_OPTIONS else "사다리차 🪜",
         "special_notes": "", "storage_duration": 1,
         "storage_use_electricity": False, 
-        "long_distance_selector": data.long_distance_options[0] if hasattr(data, 'long_distance_options') and data.long_distance_options else "선택 안 함",
+        "long_distance_selector": data.long_distance_options[0] if hasattr(data, "long_distance_options") and data.long_distance_options else "선택 안 함",
         "vehicle_select_radio": "자동 추천 차량 사용", "manual_vehicle_select_value": None,
         "final_selected_vehicle": None, "prev_final_selected_vehicle": None,
         "sky_hours_from": 1, "sky_hours_final": 1, "add_men": 0, "add_women": 0, "has_waste_check": False, "waste_tons_input": 0.5,
@@ -242,7 +242,7 @@ def load_state_from_data(loaded_data, update_basket_callback):
         "dispatched_1t": 0, "dispatched_2_5t": 0, "dispatched_3_5t": 0, "dispatched_5t": 0,
         "has_via_point": False,
         "via_point_location": "",
-        "via_point_method": data.METHOD_OPTIONS[0] if hasattr(data, 'METHOD_OPTIONS') and data.METHOD_OPTIONS else "사다리차 🪜",
+        "via_point_method": data.METHOD_OPTIONS[0] if hasattr(data, "METHOD_OPTIONS") and data.METHOD_OPTIONS else "사다리차 🪜",
         "via_point_surcharge": 0, 
         "uploaded_image_paths": [], # 이미지 경로 기본값
     }
@@ -270,21 +270,21 @@ def load_state_from_data(loaded_data, update_basket_callback):
             value = loaded_data[key]; original_value = value
             try:
                 target_value = None
-                if key in ['moving_date', 'arrival_date']:
+                if key in ["moving_date", "arrival_date"]:
                     if isinstance(value, str): target_value = datetime.fromisoformat(value).date()
                     elif isinstance(value, date): target_value = value
                     else: target_value = defaults_for_recovery.get(key, default_date)
                 elif key in int_keys:
-                    if isinstance(value, str) and value.strip() == '': target_value = defaults_for_recovery.get(key, 0); 
+                    if isinstance(value, str) and value.strip() == "": target_value = defaults_for_recovery.get(key, 0); 
                     else: target_value = int(value)
                     if key not in allow_negative_keys: target_value = max(0, target_value)
-                    if key == 'storage_duration': target_value = max(1, target_value)
+                    if key == "storage_duration": target_value = max(1, target_value)
                 elif key in float_keys:
-                    if isinstance(value, str) and value.strip() == '': target_value = defaults_for_recovery.get(key, 0.0);
+                    if isinstance(value, str) and value.strip() == "": target_value = defaults_for_recovery.get(key, 0.0);
                     else: target_value = float(value)
                     target_value = max(0.0, target_value)
                 elif key in bool_keys:
-                    if isinstance(value, str): target_value = value.lower() in ['true', 'yes', '1', 'on']
+                    if isinstance(value, str): target_value = value.lower() in ["true", "yes", "1", "on"]
                     else: target_value = bool(value)
                 elif key in list_keys:
                     if isinstance(value, list): target_value = value
@@ -305,12 +305,12 @@ def load_state_from_data(loaded_data, update_basket_callback):
             # st.info(f"키 '{key}'가 로드된 데이터에 없어 기본값으로 설정합니다.")
 
     # Sync base_move_type with widgets after loading
-    if 'base_move_type' in st.session_state:
+    if "base_move_type" in st.session_state:
         st.session_state.base_move_type_widget_tab1 = st.session_state.base_move_type
         st.session_state.base_move_type_widget_tab3 = st.session_state.base_move_type
     
     # Ensure uploaded_image_paths is initialized if it was missing from saved data
-    if 'uploaded_image_paths' not in st.session_state:
+    if "uploaded_image_paths" not in st.session_state:
         st.session_state.uploaded_image_paths = []
     elif not isinstance(st.session_state.uploaded_image_paths, list):
          st.session_state.uploaded_image_paths = [] # Ensure it's a list
