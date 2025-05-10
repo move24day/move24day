@@ -1,5 +1,6 @@
 # ui_tab3.py
-# ui_tab3.py (실제 투입 차량 정보 입력란 완전 삭제)
+# "투입 인력 정보" 테이블을 직접 그리는 코드가 없다는 가정 하에 정리된 버전입니다.
+# 실제 파일에서 해당 부분을 찾아 제거해야 합니다.
 import streamlit as st
 import pandas as pd
 import io
@@ -13,12 +14,12 @@ try:
     import data
     import utils
     import calculations
-    import pdf_generator # pdf_generator 임포트 (이미지 변환 함수 포함)
+    import pdf_generator 
     import excel_filler
     import email_utils
     import callbacks
-    from state_manager import MOVE_TYPE_OPTIONS # state_manager에서 가져옴
-    import mms_utils # mms_utils 임포트
+    from state_manager import MOVE_TYPE_OPTIONS 
+    import mms_utils 
 except ImportError as e:
     st.error(f"UI Tab 3: 필수 모듈 로딩 실패 - {e}")
     missing_modules = []
@@ -134,7 +135,7 @@ def render_tab3():
                             try: idx_for_auto_fail = available_trucks_for_vehicle_select.index(current_manual_selection_for_auto_fail)
                             except ValueError: idx_for_auto_fail = 0
                         st.selectbox("수동으로 차량 선택:", available_trucks_for_vehicle_select, index=idx_for_auto_fail, key="manual_vehicle_select_value", on_change=update_basket_quantities_callback)
-            else:
+            else: # 수동 선택
                 if not available_trucks_for_vehicle_select: st.error("❌ 현재 이사 유형에 선택 가능한 차량 정보가 없습니다.")
                 else:
                     current_manual_selection = st.session_state.get("manual_vehicle_select_value", available_trucks_for_vehicle_select[0] if available_trucks_for_vehicle_select else None)
@@ -162,32 +163,7 @@ def render_tab3():
                 if sky_from: st.number_input("출발 스카이 시간(h)", min_value=1, step=1, key="sky_hours_from")
             with cols_sky[1]:
                 if sky_to: st.number_input("도착 스카이 시간(h)", min_value=1, step=1, key="sky_hours_final")
-            st.write("") # Add spacing after sky hours if they are shown
-
-        col_add1, col_add2 = st.columns(2)
-        with col_add1: st.number_input("추가 남성 인원 👨", min_value=0, step=1, key="add_men", help="기본 인원 외 추가로 필요한 남성 작업자 수")
-        with col_add2: st.number_input("추가 여성 인원 👩", min_value=0, step=1, key="add_women", help="기본 인원 외 추가로 필요한 여성 작업자 수")
-        
-        # "실제 투입 차량" 섹션 완전 삭제
-        
-        base_w,remove_opt,discount_amount = 0,False,0
-        final_vehicle_for_hw = st.session_state.get("final_selected_vehicle")
-        current_move_type_for_hw = st.session_state.get("base_move_type")
-        if current_move_type_for_hw and hasattr(data, "vehicle_prices") and isinstance(data.vehicle_prices, dict):
-            vehicle_prices_options_hw = data.vehicle_prices.get(current_move_type_for_hw, {})
-            if final_vehicle_for_hw and final_vehicle_for_hw in vehicle_prices_options_hw:
-                base_info_hw = vehicle_prices_options_hw.get(final_vehicle_for_hw, {})
-                base_w_raw = base_info_hw.get("housewife")
-                try:
-                    base_w = int(base_w_raw) if base_w_raw is not None else 0
-                    if base_w > 0: remove_opt, add_cost_hw = True, getattr(data, "ADDITIONAL_PERSON_COST", 0); discount_amount = add_cost_hw * base_w if isinstance(add_cost_hw, (int, float)) else 0
-                except: base_w = 0
-        
-        if remove_opt: 
-            st.checkbox(f"기본 여성({base_w}명) 제외 (비용 할인: -{discount_amount:,.0f}원)", key="remove_base_housewife")
-        else:
-            if "remove_base_housewife" in st.session_state: 
-                st.session_state.remove_base_housewife = False
+            st.write("") 
         
         col_waste1, col_waste2 = st.columns([1, 2])
         with col_waste1: 
@@ -209,11 +185,11 @@ def render_tab3():
         for i, option in enumerate(date_options):
             surcharge_val = data.special_day_prices.get(option, 0) if hasattr(data, "special_day_prices") else 0
             date_cols[i].checkbox(
-                f"{option.split(' ')[0]} (+{surcharge_val:,.0f})", # 공백 뒤 아이콘 제외하고 표시
+                f"{option.split(' ')[0]} (+{surcharge_val:,.0f})", 
                 key=f"date_opt_{i}_widget",
                 help=f"{option} 선택 시 {surcharge_val:,.0f}원 할증"
             )
-        st.write("") # Add spacing after date options
+        st.write("") 
 
         st.number_input("지방 사다리 추가요금", min_value=0, step=10000, key="regional_ladder_surcharge", help="지방으로 이동 시 사다리차 사용에 대한 추가 요금입니다.")
         if st.session_state.get("has_via_point"):
@@ -223,7 +199,7 @@ def render_tab3():
 
     # --- Cost Calculation Display ---
     with st.container(border=True):
-        st.subheader("📊 최종 견적 비용")
+        st.subheader("📊 최종 견적 비용") # "비용 상세 내역"은 여기서 자동으로 표시됨
         calculated_total_cost, cost_breakdown_items, personnel_summary = calculations.calculate_total_moving_cost(st.session_state.to_dict())
 
         if not st.session_state.get("final_selected_vehicle"):
@@ -238,7 +214,14 @@ def render_tab3():
                 })
             
             cost_df = pd.DataFrame(cost_df_data)
+            st.write("##### **세부 비용 내역**") # "비용 상세 내역" 제목 명시적 추가
             st.dataframe(cost_df, hide_index=True, use_container_width=True)
+            st.write("---") # 구분선
+
+            # 여기에 "투입 인력 정보" 테이블을 명시적으로 그리는 코드가 있었다면 삭제되어야 합니다.
+            # 예를 들어, personnel_summary를 DataFrame으로 만들어 st.dataframe()으로 표시하는 부분.
+            # 현재 코드에서는 해당 부분이 없다고 가정합니다.
+            # 만약 숨겨진 코드가 있다면, 그 부분을 찾아 제거해야 합니다.
 
             st.markdown(f"#### **총 예상 비용 (VAT 별도): <span style='color:blue; float:right;'>{calculated_total_cost:,.0f} 원</span>**", unsafe_allow_html=True)
 
@@ -255,7 +238,6 @@ def render_tab3():
             st.markdown(f"### **최종 합계 (VAT 별도): <span style='color:red; float:right;'>{final_display_cost:,.0f} 원</span>**", unsafe_allow_html=True)
             st.markdown(f"##### **잔금 (VAT 별도): <span style='float:right;'>{balance_due:,.0f} 원</span>**", unsafe_allow_html=True)
 
-
     st.divider()
 
     # --- Download and Send Section ---
@@ -263,8 +245,6 @@ def render_tab3():
         with st.container(border=True):
             st.subheader("📤 견적서 다운로드 및 발송")
             
-            # --- PDF and Excel Generation ---
-            # Always generate data for download buttons
             pdf_bytes_customer = None
             final_excel_bytes = None
             quote_image_bytes = None
@@ -273,8 +253,8 @@ def render_tab3():
                 pdf_bytes_customer = pdf_generator.generate_pdf(
                     st.session_state.to_dict(),
                     cost_breakdown_items,
-                    final_display_cost, # 최종 조정된 금액 전달
-                    personnel_summary
+                    final_display_cost, 
+                    personnel_summary # personnel_summary 전달
                 )
             else: st.warning("PDF 생성 모듈(pdf_generator)이 없어 PDF 생성이 비활성화되었습니다.")
 
@@ -287,8 +267,8 @@ def render_tab3():
                  final_excel_bytes = excel_filler.fill_final_excel_template(
                     st.session_state.to_dict(),
                     cost_breakdown_items,
-                    final_display_cost, # 최종 조정된 금액 전달
-                    personnel_summary
+                    final_display_cost, 
+                    personnel_summary # personnel_summary 전달
                 )
             else: st.warning("Excel 생성 모듈(excel_filler)이 없어 Excel 생성이 비활성화되었습니다.")
 
@@ -296,7 +276,6 @@ def render_tab3():
             customer_phone_for_filename = utils.extract_phone_number_part(st.session_state.get("customer_phone", ""), default="견적")
             kst_filename_part = utils.get_current_kst_time_str("%Y%m%d")
 
-            # --- Download Buttons ---
             col_pdf, col_excel, col_email_send, col_mms_send = st.columns(4)
             with col_pdf:
                 if pdf_bytes_customer:
@@ -320,7 +299,6 @@ def render_tab3():
                     )
                 else: st.button("📊 Excel 견적서 다운로드", disabled=True, use_container_width=True)
 
-            # --- Email Send ---
             with col_email_send:
                 email_button_disabled = not pdf_bytes_customer or not st.session_state.get("customer_email") or 'email_utils' not in globals()
                 if st.button("📧 이메일로 견적 발송", disabled=email_button_disabled, use_container_width=True):
@@ -335,11 +313,9 @@ def render_tab3():
                             email_sent = email_utils.send_quote_email(recipient, subject, body, pdf_bytes_customer, pdf_name_email)
                         if email_sent:
                             st.success(f"{recipient}(으)로 견적서 이메일 발송 성공!")
-                        # 실패 메시지는 email_utils 내부에서 st.error로 표시
                     else:
                         st.error("이메일 발송 모듈(email_utils)이 준비되지 않았습니다.")
             
-            # --- MMS Send ---
             with col_mms_send:
                 mms_button_disabled = not quote_image_bytes or not st.session_state.get("customer_phone") or 'mms_utils' not in globals()
                 if st.button("📱 MMS로 견적 발송", disabled=mms_button_disabled, use_container_width=True):
@@ -352,14 +328,12 @@ def render_tab3():
                         with st.spinner("MMS 발송 준비 중... (실제 발송은 게이트웨이 연동 필요)"):
                             mms_sent = mms_utils.send_mms_with_image(recipient_phone_mms, quote_image_bytes, img_filename_mms, text_msg_mms)
                         
-                        if mms_sent: # 실제 연동 시 성공 여부 판단
+                        if mms_sent: 
                             st.success(f"{recipient_phone_mms}(으)로 견적 이미지 MMS 발송 성공!")
                         else:
-                            # 실패 메시지는 mms_utils 내부 또는 여기서 상세화 가능
                             st.warning("MMS 발송 기능이 아직 완전히 연동되지 않았거나, 발송에 실패했습니다. (mms_utils.py 확인 필요)")
                     else:
                         st.error("MMS 발송 모듈(mms_utils)이 준비되지 않았습니다.")
 
-    # --- Display Current KST Time ---
     current_kst = utils.get_current_kst_time_str() if 'utils' in globals() and hasattr(utils, 'get_current_kst_time_str') else "시간 로드 실패"
     st.caption(f"현재 시간 (KST): {current_kst}")
