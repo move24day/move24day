@@ -1,5 +1,5 @@
 # ui_tab1.py
-# ui_tab1.py (경유지 옵션, 도착 예정일, 보관 전기사용 옵션 추가, 이미지 업로드 기능 수정, use_container_width 적용)
+# ui_tab1.py (use_container_width 적용 및 기타 이전 수정 사항 포함)
 import streamlit as st
 from datetime import datetime, date, timedelta
 import pytz
@@ -86,38 +86,44 @@ def render_tab1():
                     if processed_results:
                         st.session_state.gdrive_search_results = processed_results
                         st.session_state.gdrive_file_options_map = {r['name']: r['id'] for r in processed_results}
-                        # 검색 결과가 있으면 첫 번째 항목을 기본 선택으로 설정
-                        if processed_results:
+                        if processed_results: # 검색 결과가 있으면 첫 번째 항목을 기본 선택
                             st.session_state.gdrive_selected_filename = processed_results[0].get('name')
                             st.session_state.gdrive_selected_file_id = processed_results[0].get('id')
                         st.success(f"✅ {len(processed_results)}개 검색 완료.")
-                        # 검색 후에는 UI가 업데이트되도록 rerun을 호출할 수 있으나,
-                        # selectbox의 index가 올바르게 설정되도록 주의 필요.
-                        # 여기서는 자동 rerun 대신 selectbox가 업데이트된 상태를 반영하도록 함.
                     else: st.warning("⚠️ 해당 파일 없음.")
                 else: st.warning("⚠️ 검색어를 입력하세요.")
+                # 검색 후에는 selectbox가 업데이트된 상태를 반영하도록 st.rerun()을 명시적으로 호출하지 않음
+                # selectbox의 index가 검색 결과에 따라 동적으로 설정되어야 함
 
             if st.session_state.get('gdrive_search_results'):
                 file_options_display = list(st.session_state.gdrive_file_options_map.keys())
                 current_selection_index = 0
-                if st.session_state.gdrive_selected_filename in file_options_display:
-                    try: current_selection_index = file_options_display.index(st.session_state.gdrive_selected_filename)
-                    except ValueError: current_selection_index = 0
-                
+                # 현재 선택된 파일명이 옵션에 있으면 해당 인덱스를 사용, 없으면 0
+                if st.session_state.get('gdrive_selected_filename') in file_options_display:
+                    try:
+                        current_selection_index = file_options_display.index(st.session_state.gdrive_selected_filename)
+                    except ValueError:
+                        current_selection_index = 0
+                elif file_options_display : # 선택된 파일명이 없지만 옵션이 있다면 첫번째를 기본값으로
+                     st.session_state.gdrive_selected_filename = file_options_display[0]
+                     st.session_state.gdrive_selected_file_id = st.session_state.gdrive_file_options_map.get(file_options_display[0])
+                     current_selection_index = 0
+
+
                 on_change_callback_gdrive = getattr(callbacks, 'update_selected_gdrive_id', None)
-                if not callable(on_change_callback_gdrive): # 콜백 함수 존재 확인
-                    on_change_callback_gdrive = None 
+                if not callable(on_change_callback_gdrive):
+                    on_change_callback_gdrive = None
 
                 st.selectbox(
                     "불러올 JSON 파일 선택:",
                     file_options_display,
                     key="gdrive_selected_filename_widget_tab1",
                     index=current_selection_index,
-                    on_change=on_change_callback_gdrive # 콜백 연결
+                    on_change=on_change_callback_gdrive
                 )
-                # selectbox 변경 시 콜백이 즉시 ID를 업데이트하도록 보장 (만약 콜백이 즉시 실행 안되는 경우 대비)
+                # selectbox의 on_change가 즉시 ID를 업데이트하도록 보장
                 if on_change_callback_gdrive and \
-                   st.session_state.gdrive_selected_filename_widget_tab1 != st.session_state.gdrive_selected_filename:
+                   st.session_state.get("gdrive_selected_filename_widget_tab1") != st.session_state.get('gdrive_selected_filename'):
                     on_change_callback_gdrive()
 
 
@@ -132,8 +138,7 @@ def render_tab1():
                         if not update_basket_callback_ref:
                             st.error("Basket callback 없음!")
                             update_basket_callback_ref = lambda: None
-                        
-                        # uploaded_image_paths가 로드된 데이터에 없거나 리스트가 아니면 빈 리스트로 초기화
+
                         if 'uploaded_image_paths' not in loaded_content or \
                            not isinstance(loaded_content.get('uploaded_image_paths'), list):
                             loaded_content['uploaded_image_paths'] = []
@@ -141,7 +146,7 @@ def render_tab1():
                         load_success = load_state_from_data(loaded_content, update_basket_callback_ref)
                         if load_success:
                             st.success("✅ 견적 데이터 로딩 완료.")
-                            st.rerun() # 상태 변경 후 UI 즉시 업데이트
+                            st.rerun()
                         else: st.error("❌ 저장된 데이터 형식 오류로 로딩 실패.")
                     else: st.error(f"❌ '{st.session_state.gdrive_selected_filename}' 파일 로딩 또는 JSON 파싱 실패.")
                 else: st.warning("⚠️ 불러올 파일을 선택해주세요.")
@@ -166,9 +171,8 @@ def render_tab1():
                         st.error("⚠️ 저장 실패: 유효한 고객 전화번호를 입력해주세요.")
                     else:
                         json_filename = f"{customer_phone}.json"
-                        state_data_to_save = prepare_state_for_save() # state_manager.py 함수 사용
+                        state_data_to_save = prepare_state_for_save()
 
-                        # 저장 전 uploaded_image_paths가 리스트인지 다시 한번 확인
                         if 'uploaded_image_paths' not in state_data_to_save or \
                            not isinstance(state_data_to_save.get('uploaded_image_paths'), list):
                              state_data_to_save['uploaded_image_paths'] = st.session_state.get('uploaded_image_paths', [])
@@ -189,9 +193,9 @@ def render_tab1():
 
     # === Customer Info Section ===
     st.header("📝 고객 기본 정보")
-    move_type_options_tab1 = MOVE_TYPE_OPTIONS # state_manager에서 가져온 상수 사용
+    move_type_options_tab1 = MOVE_TYPE_OPTIONS
     sync_move_type_callback_ref = getattr(callbacks, 'sync_move_type', None)
-    if not callable(sync_move_type_callback_ref): # 콜백 함수 존재 확인
+    if not callable(sync_move_type_callback_ref):
         sync_move_type_callback_ref = None
 
 
@@ -242,7 +246,7 @@ def render_tab1():
         st.selectbox("🛠️ 도착지 작업 방법", method_options_to, key="to_method", help="사다리차, 승강기, 계단, 스카이 중 선택")
 
     # === Image Upload Section ===
-    if UPLOAD_DIR: # UPLOAD_DIR이 정상적으로 설정된 경우에만 이미지 업로드 섹션 표시
+    if UPLOAD_DIR:
         st.subheader("🖼️ 관련 이미지 업로드")
         uploaded_files = st.file_uploader(
             "이미지 파일을 선택해주세요 (여러 파일 가능)",
@@ -252,12 +256,11 @@ def render_tab1():
         )
 
         if uploaded_files:
-            # uploaded_image_paths가 없거나 리스트가 아니면 초기화
             if 'uploaded_image_paths' not in st.session_state or \
                not isinstance(st.session_state.uploaded_image_paths, list):
                 st.session_state.uploaded_image_paths = []
 
-            newly_added_paths_this_run = [] # 이번 실행에서 새로 추가된 경로만 추적
+            newly_added_paths_this_run = []
 
             for uploaded_file in uploaded_files:
                 customer_phone_for_img = st.session_state.get('customer_phone', 'unknown_phone').strip()
@@ -272,8 +275,6 @@ def render_tab1():
                     with open(save_path, "wb") as f:
                         f.write(uploaded_file.getbuffer())
 
-                    # 중복 방지: st.session_state.uploaded_image_paths에 이미 없고,
-                    # 이번 실행에서 newly_added_paths_this_run에도 없는 경우에만 추가
                     if save_path not in st.session_state.uploaded_image_paths and \
                        save_path not in newly_added_paths_this_run:
                         newly_added_paths_this_run.append(save_path)
@@ -281,36 +282,33 @@ def render_tab1():
                 except Exception as e:
                     st.error(f"'{uploaded_file.name}' 저장 실패: {e}")
                     traceback.print_exc()
-            
-            # 이번 실행에서 새로 추가된 경로들만 session_state에 반영
+
             if newly_added_paths_this_run:
                 st.session_state.uploaded_image_paths.extend(newly_added_paths_this_run)
-                st.rerun() # 새로운 이미지가 추가되었으므로 UI 갱신
+                st.rerun()
 
-        # 업로드된 이미지 표시 로직 (항상 현재 st.session_state.uploaded_image_paths 기준)
         if st.session_state.get('uploaded_image_paths'):
             st.markdown("**업로드된 이미지:**")
             current_image_paths_in_state = st.session_state.uploaded_image_paths
-            
-            # 유효한 (존재하는) 이미지 경로만 필터링
+
             valid_image_paths_to_display = [
-                p for p in current_image_paths_in_state 
+                p for p in current_image_paths_in_state
                 if isinstance(p, str) and os.path.exists(p)
             ]
-            
-            # 만약 session_state에 유효하지 않은 경로가 포함되어 있었다면, 이를 정리 (선택적)
+
             if len(valid_image_paths_to_display) != len(current_image_paths_in_state):
                 st.session_state.uploaded_image_paths = valid_image_paths_to_display
-                # st.rerun() # 상태 변경 시 필요하다면 rerun
+                # 여기서 st.rerun()을 호출하면 무한 루프에 빠질 수 있으므로 주의.
+                # 상태가 변경되었으므로 다음 rerun 시 반영됨.
 
             if valid_image_paths_to_display:
                 cols = st.columns(3)
                 for i, img_path in enumerate(valid_image_paths_to_display):
                     try:
-                        cols[i % 3].image(img_path, caption=os.path.basename(img_path), use_container_width=True) # 수정된 파라미터 사용
+                        cols[i % 3].image(img_path, caption=os.path.basename(img_path), use_container_width=True) # use_container_width로 수정
                     except Exception as img_disp_err:
                         cols[i % 3].warning(f"{os.path.basename(img_path)} 표시 불가: {img_disp_err}")
-            elif current_image_paths_in_state: # 리스트는 있지만 유효한 경로가 없는 경우
+            elif current_image_paths_in_state:
                 st.caption("이전에 업로드된 이미지 중 현재 유효한 파일이 없습니다.")
     else:
         st.warning("이미지 업로드 디렉토리 설정 오류로 이미지 업로드 기능이 비활성화되었습니다.")
@@ -334,31 +332,30 @@ def render_tab1():
             storage_options = data.STORAGE_TYPE_OPTIONS if hasattr(data, 'STORAGE_TYPE_OPTIONS') and data.STORAGE_TYPE_OPTIONS else []
             st.radio("보관 유형 선택:", options=storage_options, key="storage_type", horizontal=True)
             st.checkbox("🔌 보관 중 전기사용 (냉장고 등, 일 3,000원 추가)", key="storage_use_electricity")
-            
-            # 도착 예정일 입력 (moving_date 이후로만 선택 가능)
+
             min_arrival_date = st.session_state.get('moving_date', date.today())
-            if not isinstance(min_arrival_date, date): # 혹시라도 moving_date가 날짜 객체가 아니면 오늘로
+            if not isinstance(min_arrival_date, date):
                 min_arrival_date = date.today()
 
             current_arrival_date = st.session_state.get('arrival_date')
             if not isinstance(current_arrival_date, date) or current_arrival_date < min_arrival_date:
-                st.session_state.arrival_date = min_arrival_date # 최소값 보정
+                st.session_state.arrival_date = min_arrival_date
 
             st.date_input(
                 "🚚 도착 예정일 (보관 후)",
                 key="arrival_date",
                 min_value=min_arrival_date
             )
-            
-            moving_dt = st.session_state.get('moving_date') # 이미 date 객체라고 가정 (위에서 처리됨)
-            arrival_dt = st.session_state.get('arrival_date') # 이미 date 객체라고 가정
-            
+
+            moving_dt = st.session_state.get('moving_date')
+            arrival_dt = st.session_state.get('arrival_date')
+
             calculated_duration = 1
             if isinstance(moving_dt, date) and isinstance(arrival_dt, date) and arrival_dt >= moving_dt:
                 delta = arrival_dt - moving_dt
                 calculated_duration = max(1, delta.days + 1)
-            st.session_state.storage_duration = calculated_duration # 계산된 기간을 세션 상태에 저장
-            
+            st.session_state.storage_duration = calculated_duration
+
             st.markdown(f"**계산된 보관 기간:** **`{calculated_duration}`** 일")
             st.caption("보관 기간은 출발일과 도착 예정일을 포함하여 자동 계산됩니다.")
         st.divider()
